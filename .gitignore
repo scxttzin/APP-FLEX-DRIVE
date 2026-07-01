@@ -1,0 +1,10 @@
+# Preview local / config da IDE
+.claude/
+
+# Dependências (não usadas — app é estático)
+node_modules/
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.log
