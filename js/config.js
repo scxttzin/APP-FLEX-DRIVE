@@ -25,7 +25,7 @@ export const CONFIG = {
 
     // PIX — usado na tela de pagamento do cliente (copia e cola + QR)
     pix: {
-      chave: '',                    // ⬅️ COLE AQUI a chave Pix da Flex Drive (CNPJ, e-mail, telefone ou aleatória)
+      chave: 'bc0eefe6-3c00-458b-8a61-423940ae9806',  // chave Pix aleatória da Flex Drive
       nome: 'Flex Drive Locadora',  // nome do recebedor (sem acentos, máx 25)
       cidade: 'Brasilia',           // cidade do recebedor (sem acentos, máx 15)
     },
