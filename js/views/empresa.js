@@ -392,7 +392,7 @@ export async function renderEmpresa(root, user, onLogout) {
       const f = mod.overlay.querySelector('#f-sched'); if (!f.reportValidity()) return;
       const d = Object.fromEntries(new FormData(f));
       const partner = partners.find((p) => p.id === d.partner_id);
-      await api.saveMaintenance({ id: m.id, status: 'agendada', scheduled_date: d.scheduled_date, cost: Number(d.cost || 0), partner_id: d.partner_id || null, partner_name: partner?.name || null, partner_location: partner?.location || null });
+      await api.saveMaintenance({ id: m.id, status: 'agendada', scheduled_date: d.scheduled_date, cost: Number(d.cost || 0), partner_id: d.partner_id || null, partner_name: partner?.name || null, partner_location: partner?.location || null, partner_link: partner?.map_link || null });
       toast('Manutenção agendada! O motorista foi avisado. 🔧', 'ok');
       mod.close(); after && after();
     };
@@ -433,7 +433,7 @@ export async function renderEmpresa(root, user, onLogout) {
       data.cost = Number(data.cost || 0);
       if (data.status === 'concluida') data.done_date = todayISO();
       const partner = partners.find((p) => p.id === data.partner_id);
-      data.partner_name = partner?.name || null; data.partner_location = partner?.location || null;
+      data.partner_name = partner?.name || null; data.partner_location = partner?.location || null; data.partner_link = partner?.map_link || null;
       if (!data.partner_id) data.partner_id = null;
       if (isEdit) data.id = mm.id;
       await api.saveMaintenance(data);
@@ -617,6 +617,7 @@ export async function renderEmpresa(root, user, onLogout) {
             <button class="btn btn-glass" data-act="edit" style="justify-content:flex-start">${icon('edit')} Editar dados do motorista</button>
             <button class="btn btn-glass" data-act="vehicle" style="justify-content:flex-start">${icon('car')} Veículo vinculado — desvincular / trocar</button>
             <button class="btn btn-glass" data-act="payment" style="justify-content:flex-start">${icon('payments')} Gerenciar pagamento — valor ou dia</button>
+            <button class="btn btn-glass" data-act="docs" style="justify-content:flex-start">${icon('doc')} Gerenciar documentação</button>
             <button class="btn btn-danger" data-act="remove" style="justify-content:flex-start">${icon('trash')} Remover motorista</button>
           </div>
         </div>`,
@@ -626,6 +627,7 @@ export async function renderEmpresa(root, user, onLogout) {
     m.overlay.querySelector('[data-act="edit"]').onclick = () => { m.close(); formEditDriver(c, () => go('motoristas')); };
     m.overlay.querySelector('[data-act="vehicle"]').onclick = () => { m.close(); manageVehicle(c, myVehs); };
     m.overlay.querySelector('[data-act="payment"]').onclick = () => { m.close(); managePayment(c, myVehs[0]); };
+    m.overlay.querySelector('[data-act="docs"]').onclick = () => { m.close(); manageDocumentation(c, () => go('motoristas')); };
     m.overlay.querySelector('[data-act="remove"]').onclick = () => {
       m.close();
       confirmDialog(`Remover o motorista ${c.full_name}? Isso exclui a conta de acesso, os pagamentos e desvincula o veículo. Não pode ser desfeito.`, async () => {
@@ -731,6 +733,48 @@ export async function renderEmpresa(root, user, onLogout) {
     };
   }
 
+  /* gerenciar documentação (contratos + documentos) de um motorista */
+  async function manageDocumentation(c, after) {
+    const [contracts, documents] = await Promise.all([api.listContracts({ client_id: c.id }), api.listDocuments({ client_id: c.id })]);
+    const veh = Object.values(vehiclesMap).find((v) => v.client_id === c.id);
+    const sixMonths = () => { const d = new Date(); d.setMonth(d.getMonth() + 6); return d.toISOString().slice(0, 10); };
+    const m = modal({
+      title: `Documentação — ${c.full_name}`, icon: 'doc',
+      body: `
+        <div class="panel-head" style="margin-bottom:.6rem"><h3 style="font-size:1rem;flex:1">Contratos</h3><button class="btn btn-ghost btn-sm" data-add-ct>${icon('upload')} Enviar</button></div>
+        ${contracts.length ? contracts.map((ct) => `
+          <div class="file-row"><div class="file-ico">${icon('doc')}</div>
+            <div class="f-meta"><div class="f-name">${escapeHtml(ct.title || 'Contrato')}</div><div class="f-sub">${ct.end_date ? vigencia(ct.end_date).texto : 'sem vigência'}</div></div>
+            <button class="icon-btn" data-open-ct="${ct.id}" title="Abrir">${icon('eye')}</button>
+            <button class="icon-btn danger" data-del-ct="${ct.id}" title="Excluir">${icon('trash')}</button>
+          </div>`).join('') : emptyBox('Nenhum contrato.')}
+        <div class="panel-head" style="margin:1.3rem 0 .6rem"><h3 style="font-size:1rem;flex:1">Documentos do veículo</h3><button class="btn btn-ghost btn-sm" data-add-doc>${icon('upload')} Enviar</button></div>
+        ${documents.length ? documents.map((d) => `
+          <div class="file-row"><div class="file-ico blue">${icon('doc')}</div>
+            <div class="f-meta"><div class="f-name">${escapeHtml(d.title || 'Documento')}</div><div class="f-sub">${escapeHtml(d.type || '')}</div></div>
+            <button class="icon-btn" data-open-doc="${d.id}" title="Abrir">${icon('eye')}</button>
+            <button class="icon-btn danger" data-del-doc="${d.id}" title="Excluir">${icon('trash')}</button>
+          </div>`).join('') : emptyBox('Nenhum documento.')}`,
+      footer: `<button class="btn btn-blue" data-cancel>Fechar</button>`,
+    });
+    const reopen = () => { m.close(); manageDocumentation(c, after); };
+    m.overlay.querySelector('[data-cancel]').onclick = () => { m.close(); after && after(); };
+    m.overlay.querySelector('[data-add-ct]').onclick = () => {
+      const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'application/pdf,image/*';
+      inp.onchange = async () => { if (!inp.files[0]) return; try { await api.uploadContract({ file: inp.files[0], client_id: c.id, vehicle_id: veh?.id || null, title: `Contrato de Locação — ${c.full_name}`, signed_date: todayISO(), start_date: todayISO(), end_date: sixMonths(), status: 'vigente' }); toast('Contrato enviado', 'ok'); reopen(); } catch (e) { toast('Erro: ' + e.message, 'err'); } };
+      inp.click();
+    };
+    m.overlay.querySelector('[data-add-doc]').onclick = () => {
+      const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'application/pdf,image/*';
+      inp.onchange = async () => { if (!inp.files[0]) return; try { await api.uploadDocument({ file: inp.files[0], vehicle_id: veh?.id || null, client_id: c.id, type: 'Outros', title: `Documento — ${c.full_name}` }); toast('Documento enviado', 'ok'); reopen(); } catch (e) { toast('Erro: ' + e.message, 'err'); } };
+      inp.click();
+    };
+    m.overlay.querySelectorAll('[data-open-ct]').forEach((b) => b.onclick = async () => { const rec = contracts.find((x) => x.id === b.dataset.openCt); openFile(await api.fileUrl(rec), rec.file_name || 'contrato.pdf'); });
+    m.overlay.querySelectorAll('[data-del-ct]').forEach((b) => b.onclick = () => confirmDialog('Excluir este contrato?', async () => { await api.deleteContract(b.dataset.delCt); toast('Excluído', 'ok'); reopen(); }));
+    m.overlay.querySelectorAll('[data-open-doc]').forEach((b) => b.onclick = async () => { const rec = documents.find((x) => x.id === b.dataset.openDoc); openFile(await api.fileUrl(rec), rec.file_name || 'documento.pdf'); });
+    m.overlay.querySelectorAll('[data-del-doc]').forEach((b) => b.onclick = () => confirmDialog('Excluir este documento?', async () => { await api.deleteDocument(b.dataset.delDoc); toast('Excluído', 'ok'); reopen(); }));
+  }
+
   async function formMotorista(after) {
     const vehicles = Object.values(vehiclesMap);
     const m = modal({
@@ -754,6 +798,12 @@ export async function renderEmpresa(root, user, onLogout) {
           </div>
           <div class="body-sm" style="margin:-.2rem 0 .2rem">Com valor + veículo, geramos 12 cobranças semanais automaticamente.</div>
 
+          <div class="eyebrow" style="margin:.7rem 0 .5rem">Contrato de locação</div>
+          <div class="field" style="margin-bottom:.2rem"><label>Contrato assinado (opcional)</label>
+            <div class="upload-mini" id="mot-contract-drop">${icon('upload')} Anexar o contrato assinado (PDF ou imagem)</div>
+            <input type="file" id="mot-contract-file" accept="application/pdf,image/*" hidden></div>
+          <div class="body-sm" style="margin:0 0 .2rem">Fica salvo na Documentação do motorista.</div>
+
           <label style="display:flex;align-items:center;gap:8px;margin:.6rem 0 .3rem;cursor:pointer;font-size:.86rem;font-weight:600;color:var(--gray-2)">
             <input type="checkbox" id="toggle-second"> Adicionar 2º motorista (conta conjunta)
           </label>
@@ -771,6 +821,11 @@ export async function renderEmpresa(root, user, onLogout) {
     const toggle = m.overlay.querySelector('#toggle-second');
     const secondFields = m.overlay.querySelector('#second-fields');
     toggle.onchange = () => { secondFields.style.display = toggle.checked ? 'block' : 'none'; };
+    let contractFile = null;
+    const cDrop = m.overlay.querySelector('#mot-contract-drop');
+    const cFile = m.overlay.querySelector('#mot-contract-file');
+    cDrop.onclick = () => cFile.click();
+    cFile.onchange = () => { if (cFile.files[0]) { contractFile = cFile.files[0]; cDrop.classList.add('has-file'); cDrop.innerHTML = `${icon('check')} ${escapeHtml(contractFile.name)}`; } };
     m.overlay.querySelector('[data-cancel]').onclick = m.close;
     m.overlay.querySelector('[data-save]').onclick = async () => {
       if (!f.reportValidity()) return;
@@ -780,6 +835,11 @@ export async function renderEmpresa(root, user, onLogout) {
       const btn = m.overlay.querySelector('[data-save]'); btn.disabled = true; btn.innerHTML = '<span class="spinner" style="width:16px;height:16px"></span> Cadastrando...';
       try {
         const cred = await api.createDriver(data);
+        if (contractFile && cred.user_id) {
+          const end = (() => { const dd = new Date(); dd.setMonth(dd.getMonth() + 6); return dd.toISOString().slice(0, 10); })();
+          try { await api.uploadContract({ file: contractFile, client_id: cred.user_id, vehicle_id: data.vehicle_id || null, title: `Contrato de Locação — ${data.full_name}`, signed_date: todayISO(), start_date: todayISO(), end_date: end, status: 'vigente' }); }
+          catch (e) { toast('Motorista criado, mas o contrato falhou: ' + e.message, 'err'); }
+        }
         m.close(); showCredentials(cred, data.full_name, data.phone);
         after && after();
       } catch (err) { toast('Erro: ' + err.message, 'err'); btn.disabled = false; btn.innerHTML = `${icon('check')} Cadastrar`; }
@@ -824,6 +884,7 @@ export async function renderEmpresa(root, user, onLogout) {
                 ${p.role ? `<span class="badge badge-blue" style="margin-top:.2rem">${escapeHtml(p.role)}</span>` : ''}</div>
               </div>
               ${p.location ? `<div class="body-sm" style="display:flex;gap:6px;align-items:flex-start">${icon('pin')} <span>${escapeHtml(p.location)}</span></div>` : ''}
+              ${p.map_link ? `<a class="body-sm text-blue" href="${escapeHtml(p.map_link)}" target="_blank" rel="noopener" style="display:inline-flex;gap:6px;align-items:center;margin-top:.4rem">${icon('map')} Ver no mapa</a>` : ''}
               <div class="row-actions" style="margin-top:1rem">
                 <button class="icon-btn" title="Editar" data-edit-pt="${p.id}">${icon('edit')}</button>
                 <button class="icon-btn danger" title="Excluir" data-del-pt="${p.id}">${icon('trash')}</button>
@@ -845,7 +906,9 @@ export async function renderEmpresa(root, user, onLogout) {
           <div class="field"><label>Nome do parceiro</label><input class="input" name="name" required value="${escapeHtml(p?.name || '')}" placeholder="Ex.: Auto Center do Zé"></div>
           <div class="field"><label>Função</label><input class="input" name="role" value="${escapeHtml(p?.role || '')}" placeholder="Revisão, Concessionária, Mecânico, Lanternagem..." list="parc-roles"></div>
           <datalist id="parc-roles"><option>Revisão</option><option>Concessionária</option><option>Mecânico</option><option>Lanternagem</option><option>Pneus e alinhamento</option><option>Elétrica</option><option>Funilaria e pintura</option></datalist>
-          <div class="field" style="margin-bottom:0"><label>Localização</label><textarea class="textarea" name="location" placeholder="Endereço completo (rua, número, cidade)">${escapeHtml(p?.location || '')}</textarea></div>
+          <div class="field"><label>Endereço</label><textarea class="textarea" name="location" placeholder="Rua, número, bairro, cidade" style="min-height:70px">${escapeHtml(p?.location || '')}</textarea></div>
+          <div class="field" style="margin-bottom:0"><label>Link de localização</label><input class="input" type="url" name="map_link" value="${escapeHtml(p?.map_link || '')}" placeholder="Cole o link do Google Maps ou Waze">
+            <div class="body-sm" style="margin-top:.3rem">Esse link é o que abre no botão <strong>"Ir até lá"</strong> do motorista.</div></div>
         </form>`,
       footer: `<button class="btn btn-glass" data-cancel>Cancelar</button><button class="btn btn-blue" data-save>${icon('check')} Salvar</button>`,
     });

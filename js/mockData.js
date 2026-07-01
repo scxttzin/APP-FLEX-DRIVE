@@ -71,8 +71,8 @@ export const SEED = {
   ],
 
   partners: [
-    { id: 'pt-1', name: 'BYD Brasília', role: 'Concessionária', location: 'SIA Trecho 3, Brasília/DF', created_at: addDays(-60) },
-    { id: 'pt-2', name: 'Auto Center do Zé', role: 'Mecânico', location: 'QNM 34, Taguatinga/DF', created_at: addDays(-45) },
-    { id: 'pt-3', name: 'Pneus & Cia', role: 'Pneus e alinhamento', location: 'SOF Norte, Brasília/DF', created_at: addDays(-20) },
+    { id: 'pt-1', name: 'BYD Brasília', role: 'Concessionária', location: 'SIA Trecho 3, Brasília/DF', map_link: 'https://maps.google.com/?q=BYD+Brasilia+SIA', created_at: addDays(-60) },
+    { id: 'pt-2', name: 'Auto Center do Zé', role: 'Mecânico', location: 'QNM 34, Taguatinga/DF', map_link: 'https://maps.google.com/?q=QNM+34+Taguatinga', created_at: addDays(-45) },
+    { id: 'pt-3', name: 'Pneus & Cia', role: 'Pneus e alinhamento', location: 'SOF Norte, Brasília/DF', map_link: 'https://waze.com/ul?q=SOF+Norte+Brasilia', created_at: addDays(-20) },
   ],
 };

@@ -89,7 +89,7 @@ const DemoBackend = {
       }
     }
     saveDB(db);
-    return { email, password };
+    return { email, password, user_id: id };
   },
   async deleteDriver(user_id) {
     const db = loadDB();
@@ -301,7 +301,9 @@ const SupabaseBackend = {
       second_name: d.second_name || null, second_cpf: d.second_cpf || null, second_phone: d.second_phone || null,
       vehicle_id: d.vehicle_id || null, weekly_value: d.weekly_value ? Number(d.weekly_value) : null, payments,
     });
-    return { email: r.email, password: r.password };
+    let user_id = r.user_id || null;
+    if (!user_id) { try { const c = await sb(); const prof = unwrap(await c.from('profiles').select('id').eq('email', d.email).single()); user_id = prof?.id; } catch {} }
+    return { email: r.email, password: r.password, user_id };
   },
   async deleteDriver(user_id) { await callAdmin('delete', { user_id }); },
   async updateDriver(id, data) { const c = await sb(); unwrap(await c.from('profiles').update(data).eq('id', id)); },

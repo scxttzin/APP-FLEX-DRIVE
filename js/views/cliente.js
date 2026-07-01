@@ -353,7 +353,10 @@ export async function renderCliente(root, user, onLogout) {
           </div>
           <div class="panel glass">
             <div class="panel-head"><span class="panel-ico">${icon('clock')}</span><h3>Minhas solicitações</h3></div>
-            ${maints.length ? maints.map((m) => `
+            ${maints.length ? maints.map((m) => {
+                const rawLink = m.status === 'agendada' ? (m.partner_link || (m.partner_location ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(m.partner_location) : '')) : '';
+                const goUrl = rawLink && !/^https?:\/\//i.test(rawLink) ? 'https://' + rawLink : rawLink;
+                return `
               <div class="file-row" style="align-items:flex-start;flex-wrap:wrap;gap:10px">
                 <div class="file-ico blue">${icon('wrench')}</div>
                 <div class="f-meta" style="flex:1;min-width:150px">
@@ -363,9 +366,10 @@ export async function renderCliente(root, user, onLogout) {
                 </div>
                 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
                   ${badge(m.status)}
-                  ${m.status === 'agendada' && m.partner_location ? `<a class="btn btn-blue btn-sm" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.partner_location)}" target="_blank" rel="noopener">${icon('map')} Ir até lá</a>` : ''}
+                  ${goUrl ? `<a class="btn btn-blue btn-sm" href="${escapeHtml(goUrl)}" target="_blank" rel="noopener">${icon('map')} Ir até lá</a>` : ''}
                 </div>
-              </div>`).join('') : `<div class="empty">${icon('info', 'empty-ico')}<p>Nenhuma solicitação ainda.</p></div>`}
+              </div>`;
+              }).join('') : `<div class="empty">${icon('info', 'empty-ico')}<p>Nenhuma solicitação ainda.</p></div>`}
           </div>
         </div>
       </div>`;
