@@ -452,6 +452,7 @@ export async function renderEmpresa(root, user, onLogout) {
       const list = filter === 'todos' ? vehicles : vehicles.filter((v) => v.status === filter);
       const grid = shell.content.querySelector('#veh-grid');
       grid.innerHTML = list.length ? list.map((v) => vehicleCard(v)).join('') : emptyBox('Nenhum veículo neste filtro.');
+      grid.querySelectorAll('[data-docs]').forEach((b) => b.onclick = () => manageVehicleDocs(vehicles.find((v) => v.id === b.dataset.docs), () => go('carros')));
       grid.querySelectorAll('[data-edit]').forEach((b) => b.onclick = () => formVeiculo(vehicles.find((v) => v.id === b.dataset.edit), () => go('carros')));
       grid.querySelectorAll('[data-del]').forEach((b) => b.onclick = () => confirmDialog('Excluir este veículo?', async () => { await api.deleteVehicle(b.dataset.del); toast('Veículo excluído', 'ok'); go('carros'); }));
     };
@@ -492,12 +493,50 @@ export async function renderEmpresa(root, user, onLogout) {
           <div class="veh-foot">
             <div class="veh-price">${fmt.money(v.weekly_value)} <small>/semana</small></div>
             <div class="row-actions">
+              <button class="icon-btn" title="Documentos do veículo" data-docs="${v.id}">${icon('doc')}</button>
               <button class="icon-btn" title="Editar" data-edit="${v.id}">${icon('edit')}</button>
               <button class="icon-btn danger" title="Excluir" data-del="${v.id}">${icon('trash')}</button>
             </div>
           </div>
         </div>
       </div>`;
+  }
+
+  /* documentos vinculados ao veículo (gerenciados na aba Veículos) */
+  async function manageVehicleDocs(vehicle, after) {
+    if (!vehicle) return;
+    const documents = await api.listDocuments({ vehicle_id: vehicle.id });
+    const m = modal({
+      title: `Documentos — ${vehicle.plate}`, icon: 'shield',
+      body: `
+        <p class="body-sm" style="margin-bottom:1rem">Documentos ficam vinculados ao <strong>veículo</strong>. O motorista que estiver com este carro os vê automaticamente.</p>
+        <div style="display:flex;gap:.6rem;align-items:flex-end;margin-bottom:1.1rem">
+          <div class="field" style="flex:1;margin:0"><label>Tipo do documento</label>
+            <select class="select" id="vdoc-type">${['CRLV', 'Seguro', 'IPVA', 'Laudo', 'Vistoria', 'Outros'].map((x) => `<option>${x}</option>`).join('')}</select></div>
+          <button class="btn btn-blue" id="vdoc-add">${icon('upload')} Enviar</button>
+          <input type="file" id="vdoc-file" accept="application/pdf,image/*" hidden>
+        </div>
+        ${documents.length ? documents.map((d) => `
+          <div class="file-row"><div class="file-ico blue">${icon('doc')}</div>
+            <div class="f-meta"><div class="f-name">${escapeHtml(d.title || 'Documento')}</div><div class="f-sub">${escapeHtml(d.type || '')}</div></div>
+            <button class="icon-btn" data-open-vd="${d.id}" title="Abrir">${icon('eye')}</button>
+            <button class="icon-btn danger" data-del-vd="${d.id}" title="Excluir">${icon('trash')}</button>
+          </div>`).join('') : emptyBox('Nenhum documento neste veículo.')}`,
+      footer: `<button class="btn btn-glass" data-cancel>Fechar</button>`,
+    });
+    const reopen = () => { m.close(); manageVehicleDocs(vehicle, after); };
+    m.overlay.querySelector('[data-cancel]').onclick = () => { m.close(); after && after(); };
+    const typeSel = m.overlay.querySelector('#vdoc-type');
+    const vfile = m.overlay.querySelector('#vdoc-file');
+    m.overlay.querySelector('#vdoc-add').onclick = () => vfile.click();
+    vfile.onchange = async () => {
+      if (!vfile.files[0]) return;
+      const type = typeSel.value;
+      try { await api.uploadDocument({ file: vfile.files[0], vehicle_id: vehicle.id, client_id: null, type, title: `${type} — ${vehicle.plate}` }); toast('Documento enviado', 'ok'); reopen(); }
+      catch (e) { toast('Erro: ' + e.message, 'err'); }
+    };
+    m.overlay.querySelectorAll('[data-open-vd]').forEach((b) => b.onclick = async () => { const rec = documents.find((x) => x.id === b.dataset.openVd); openFile(await api.fileUrl(rec), rec.file_name || 'documento.pdf'); });
+    m.overlay.querySelectorAll('[data-del-vd]').forEach((b) => b.onclick = () => confirmDialog('Excluir este documento?', async () => { await api.deleteDocument(b.dataset.delVd); toast('Excluído', 'ok'); reopen(); }));
   }
 
   async function formVeiculo(v, after) {
@@ -735,26 +774,20 @@ export async function renderEmpresa(root, user, onLogout) {
 
   /* gerenciar documentação (contratos + documentos) de um motorista */
   async function manageDocumentation(c, after) {
-    const [contracts, documents] = await Promise.all([api.listContracts({ client_id: c.id }), api.listDocuments({ client_id: c.id })]);
+    const contracts = await api.listContracts({ client_id: c.id });
     const veh = Object.values(vehiclesMap).find((v) => v.client_id === c.id);
     const sixMonths = () => { const d = new Date(); d.setMonth(d.getMonth() + 6); return d.toISOString().slice(0, 10); };
     const m = modal({
-      title: `Documentação — ${c.full_name}`, icon: 'doc',
+      title: `Contratos — ${c.full_name}`, icon: 'doc',
       body: `
+        <p class="body-sm" style="margin-bottom:1rem">Contratos de locação deste motorista. Os <strong>documentos do veículo</strong> ficam vinculados ao carro, na aba <strong>Veículos</strong>.</p>
         <div class="panel-head" style="margin-bottom:.6rem"><h3 style="font-size:1rem;flex:1">Contratos</h3><button class="btn btn-ghost btn-sm" data-add-ct>${icon('upload')} Enviar</button></div>
         ${contracts.length ? contracts.map((ct) => `
           <div class="file-row"><div class="file-ico">${icon('doc')}</div>
             <div class="f-meta"><div class="f-name">${escapeHtml(ct.title || 'Contrato')}</div><div class="f-sub">${ct.end_date ? vigencia(ct.end_date).texto : 'sem vigência'}</div></div>
             <button class="icon-btn" data-open-ct="${ct.id}" title="Abrir">${icon('eye')}</button>
             <button class="icon-btn danger" data-del-ct="${ct.id}" title="Excluir">${icon('trash')}</button>
-          </div>`).join('') : emptyBox('Nenhum contrato.')}
-        <div class="panel-head" style="margin:1.3rem 0 .6rem"><h3 style="font-size:1rem;flex:1">Documentos do veículo</h3><button class="btn btn-ghost btn-sm" data-add-doc>${icon('upload')} Enviar</button></div>
-        ${documents.length ? documents.map((d) => `
-          <div class="file-row"><div class="file-ico blue">${icon('doc')}</div>
-            <div class="f-meta"><div class="f-name">${escapeHtml(d.title || 'Documento')}</div><div class="f-sub">${escapeHtml(d.type || '')}</div></div>
-            <button class="icon-btn" data-open-doc="${d.id}" title="Abrir">${icon('eye')}</button>
-            <button class="icon-btn danger" data-del-doc="${d.id}" title="Excluir">${icon('trash')}</button>
-          </div>`).join('') : emptyBox('Nenhum documento.')}`,
+          </div>`).join('') : emptyBox('Nenhum contrato.')}`,
       footer: `<button class="btn btn-blue" data-cancel>Fechar</button>`,
     });
     const reopen = () => { m.close(); manageDocumentation(c, after); };
@@ -764,15 +797,8 @@ export async function renderEmpresa(root, user, onLogout) {
       inp.onchange = async () => { if (!inp.files[0]) return; try { await api.uploadContract({ file: inp.files[0], client_id: c.id, vehicle_id: veh?.id || null, title: `Contrato de Locação — ${c.full_name}`, signed_date: todayISO(), start_date: todayISO(), end_date: sixMonths(), status: 'vigente' }); toast('Contrato enviado', 'ok'); reopen(); } catch (e) { toast('Erro: ' + e.message, 'err'); } };
       inp.click();
     };
-    m.overlay.querySelector('[data-add-doc]').onclick = () => {
-      const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'application/pdf,image/*';
-      inp.onchange = async () => { if (!inp.files[0]) return; try { await api.uploadDocument({ file: inp.files[0], vehicle_id: veh?.id || null, client_id: c.id, type: 'Outros', title: `Documento — ${c.full_name}` }); toast('Documento enviado', 'ok'); reopen(); } catch (e) { toast('Erro: ' + e.message, 'err'); } };
-      inp.click();
-    };
     m.overlay.querySelectorAll('[data-open-ct]').forEach((b) => b.onclick = async () => { const rec = contracts.find((x) => x.id === b.dataset.openCt); openFile(await api.fileUrl(rec), rec.file_name || 'contrato.pdf'); });
     m.overlay.querySelectorAll('[data-del-ct]').forEach((b) => b.onclick = () => confirmDialog('Excluir este contrato?', async () => { await api.deleteContract(b.dataset.delCt); toast('Excluído', 'ok'); reopen(); }));
-    m.overlay.querySelectorAll('[data-open-doc]').forEach((b) => b.onclick = async () => { const rec = documents.find((x) => x.id === b.dataset.openDoc); openFile(await api.fileUrl(rec), rec.file_name || 'documento.pdf'); });
-    m.overlay.querySelectorAll('[data-del-doc]').forEach((b) => b.onclick = () => confirmDialog('Excluir este documento?', async () => { await api.deleteDocument(b.dataset.delDoc); toast('Excluído', 'ok'); reopen(); }));
   }
 
   async function formMotorista(after) {
@@ -1044,7 +1070,7 @@ export async function renderEmpresa(root, user, onLogout) {
       const f = m.overlay.querySelector('#f-doc'); if (!f.reportValidity()) return;
       const file = f.file.files[0];
       const v = vehiclesMap[f.vehicle_id.value];
-      const data = { vehicle_id: f.vehicle_id.value, client_id: v?.client_id || null, type: f.type.value, title: `${f.type.value} — ${v?.plate || ''}` };
+      const data = { vehicle_id: f.vehicle_id.value, client_id: null, type: f.type.value, title: `${f.type.value} — ${v?.plate || ''}` };
       await api.uploadDocument({ file, ...data });
       toast('Documento enviado', 'ok'); m.close(); after && after();
     };
