@@ -1056,7 +1056,6 @@ export async function renderEmpresa(root, user, onLogout) {
         <div class="file-ico ${kind === 'document' ? 'blue' : ''}">${icon('doc')}</div>
         <div class="f-meta">
           <div class="f-name">${escapeHtml(rec.title || rec.file_name || 'Documento')}</div>
-          ${rec.client_id ? `<div class="f-sub">Motorista: <strong style="color:var(--blue)">${escapeHtml(clientName(rec.client_id))}</strong></div>` : ''}
           <div class="f-sub">${kind === 'contract' ? 'Assinado em ' + fmt.date(rec.signed_date) : escapeHtml(rec.type || '')} · ${escapeHtml(vehiclesMap[rec.vehicle_id]?.plate || '')}</div>
         </div>
         <button class="icon-btn" title="Abrir" data-open='${kind}:${rec.id}'>${icon('eye')}</button>
