@@ -7,7 +7,7 @@ import { buildShell } from './shell.js';
 import { pixPayload, pixQrDataUrl } from '../pix.js';
 import {
   icon, fmt, badge, toast, modal, openFile, copyText,
-  paymentStatus, todayISO, daysFromToday, escapeHtml, vigencia,
+  paymentStatus, todayISO, daysFromToday, escapeHtml, vigencia, safeUrl,
 } from '../ui.js';
 
 const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
@@ -354,8 +354,7 @@ export async function renderCliente(root, user, onLogout) {
           <div class="panel glass">
             <div class="panel-head"><span class="panel-ico">${icon('clock')}</span><h3>Minhas solicitações</h3></div>
             ${maints.length ? maints.map((m) => {
-                const rawLink = m.status === 'agendada' ? (m.partner_link || (m.partner_location ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(m.partner_location) : '')) : '';
-                const goUrl = rawLink && !/^https?:\/\//i.test(rawLink) ? 'https://' + rawLink : rawLink;
+                const goUrl = m.status === 'agendada' ? safeUrl(m.partner_link || (m.partner_location ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(m.partner_location) : '')) : '';
                 return `
               <div class="file-row" style="align-items:flex-start;flex-wrap:wrap;gap:10px">
                 <div class="file-ico blue">${icon('wrench')}</div>

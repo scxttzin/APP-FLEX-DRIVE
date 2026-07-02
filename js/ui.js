@@ -107,6 +107,16 @@ export function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+/* Sanitiza URL para uso em href: só permite http(s)/mailto/tel; bloqueia javascript:, data:, etc.
+   Retorna '' (link inofensivo) para qualquer coisa suspeita. */
+export function safeUrl(url) {
+  const u = String(url ?? '').trim();
+  if (!u) return '';
+  if (/^(https?:\/\/|mailto:|tel:)/i.test(u)) return u;             // esquemas permitidos
+  if (/^[a-z][a-z0-9+.-]*:/i.test(u)) return '';                    // outro esquema (javascript:, data:, vbscript:...) → bloqueia
+  return 'https://' + u;                                            // sem esquema → assume https
+}
+
 /* ── TOAST ── */
 export function toast(msg, type = 'info') {
   let stack = document.querySelector('.toast-stack');

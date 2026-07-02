@@ -5,7 +5,7 @@ import { api } from '../api.js';
 import { buildShell } from './shell.js';
 import {
   icon, fmt, badge, toast, modal, confirmDialog, openFile, copyText,
-  paymentStatus, todayISO, daysFromToday, escapeHtml, vigencia,
+  paymentStatus, todayISO, daysFromToday, escapeHtml, vigencia, safeUrl,
 } from '../ui.js';
 
 const VEHICLE_STATUS = { locado: 'Locado', disponivel: 'Disponível', manutencao: 'Manutenção' };
@@ -910,7 +910,7 @@ export async function renderEmpresa(root, user, onLogout) {
                 ${p.role ? `<span class="badge badge-blue" style="margin-top:.2rem">${escapeHtml(p.role)}</span>` : ''}</div>
               </div>
               ${p.location ? `<div class="body-sm" style="display:flex;gap:6px;align-items:flex-start">${icon('pin')} <span>${escapeHtml(p.location)}</span></div>` : ''}
-              ${p.map_link ? `<a class="body-sm text-blue" href="${escapeHtml(p.map_link)}" target="_blank" rel="noopener" style="display:inline-flex;gap:6px;align-items:center;margin-top:.4rem">${icon('map')} Ver no mapa</a>` : ''}
+              ${safeUrl(p.map_link) ? `<a class="body-sm text-blue" href="${escapeHtml(safeUrl(p.map_link))}" target="_blank" rel="noopener" style="display:inline-flex;gap:6px;align-items:center;margin-top:.4rem">${icon('map')} Ver no mapa</a>` : ''}
               <div class="row-actions" style="margin-top:1rem">
                 <button class="icon-btn" title="Editar" data-edit-pt="${p.id}">${icon('edit')}</button>
                 <button class="icon-btn danger" title="Excluir" data-del-pt="${p.id}">${icon('trash')}</button>

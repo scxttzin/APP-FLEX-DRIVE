@@ -175,22 +175,30 @@ create policy "storage empresa documents" on storage.objects
 -- Cliente: leitura dos próprios arquivos (pasta nomeada com o id dele)
 create policy "storage cliente contracts (leitura)" on storage.objects
   for select using (bucket_id = 'contracts' and (storage.foldername(name))[1] = auth.uid()::text);
+-- documentos do veículo ficam na pasta com o id do veículo: o motorista lê os do carro dele
 create policy "storage cliente documents (leitura)" on storage.objects
-  for select using (bucket_id = 'documents' and (storage.foldername(name))[1] = auth.uid()::text);
+  for select using (
+    bucket_id = 'documents' and exists (
+      select 1 from public.vehicles v
+      where v.client_id = auth.uid() and (storage.foldername(name))[1] = v.id::text
+    )
+  );
 
 -- ============================================================
 -- AUTOMÁTICO — cria um perfil sempre que um usuário é criado no Auth.
--- O papel ('empresa' ou 'cliente') vem do campo metadata "role".
+-- SEGURANÇA: todo novo usuário nasce como 'cliente' (motorista). O papel de
+-- "empresa" só é atribuído manualmente (dashboard/SQL), nunca via cadastro.
 -- ============================================================
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer as $$
 begin
-  insert into public.profiles (id, email, full_name, role)
+  insert into public.profiles (id, email, full_name, role, must_change_password)
   values (
     new.id,
     new.email,
     coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email,'@',1)),
-    coalesce(new.raw_user_meta_data->>'role', 'cliente')
+    'cliente',
+    coalesce((new.raw_user_meta_data->>'must_change_password')::boolean, false)
   )
   on conflict (id) do nothing;
   return new;
@@ -200,5 +208,20 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- SEGURANÇA — impede que um usuário comum troque o próprio "role" (escalar p/ empresa).
+create or replace function public.protect_role_change()
+returns trigger language plpgsql security definer as $$
+begin
+  if not public.is_empresa() and new.role is distinct from old.role then
+    raise exception 'Alteração de papel não permitida.';
+  end if;
+  return new;
+end; $$;
+
+drop trigger if exists trg_protect_role on public.profiles;
+create trigger trg_protect_role
+  before update on public.profiles
+  for each row execute function public.protect_role_change();
 
 -- ✅ Pronto. Agora crie os usuários (ver SETUP.md, passo 4).
