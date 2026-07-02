@@ -1017,7 +1017,8 @@ export async function renderEmpresa(root, user, onLogout) {
         <div class="file-ico">${icon('doc')}</div>
         <div class="f-meta">
           <div class="f-name">${escapeHtml(c.title || 'Contrato')}</div>
-          <div class="f-sub">${escapeHtml(vehiclesMap[c.vehicle_id]?.plate || '')} · ${c.end_date ? vig.texto : 'sem vigência'}</div>
+          ${c.client_id ? `<div class="f-sub">Motorista: <strong style="color:var(--blue)">${escapeHtml(clientName(c.client_id))}</strong></div>` : ''}
+          <div class="f-sub">${escapeHtml(vehiclesMap[c.vehicle_id]?.plate || '—')} · ${c.end_date ? vig.texto : 'sem vigência'}</div>
         </div>
         ${badge(st)}
         ${c.status === 'renovacao_solicitada' ? `<button class="btn btn-blue btn-sm" data-renew-ct="${c.id}">${icon('renew')} Renovar</button>` : ''}
@@ -1055,6 +1056,7 @@ export async function renderEmpresa(root, user, onLogout) {
         <div class="file-ico ${kind === 'document' ? 'blue' : ''}">${icon('doc')}</div>
         <div class="f-meta">
           <div class="f-name">${escapeHtml(rec.title || rec.file_name || 'Documento')}</div>
+          ${rec.client_id ? `<div class="f-sub">Motorista: <strong style="color:var(--blue)">${escapeHtml(clientName(rec.client_id))}</strong></div>` : ''}
           <div class="f-sub">${kind === 'contract' ? 'Assinado em ' + fmt.date(rec.signed_date) : escapeHtml(rec.type || '')} · ${escapeHtml(vehiclesMap[rec.vehicle_id]?.plate || '')}</div>
         </div>
         <button class="icon-btn" title="Abrir" data-open='${kind}:${rec.id}'>${icon('eye')}</button>
