@@ -431,4 +431,6 @@ html { overflow-x: hidden; }
   h2 { font-size: 1.3rem; }
   .toast-stack { left: 12px; right: 12px; bottom: 12px; }
   .toast { min-width: 0; }
+  /* Notificações: ancora à tela inteira (não ao sino) para não cortar nas bordas */
+  .notif-dropdown { position: fixed; top: 66px; left: 10px; right: 10px; width: auto; max-width: none; max-height: 72vh; }
 }
