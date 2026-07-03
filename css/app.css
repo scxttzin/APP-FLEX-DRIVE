@@ -6,7 +6,7 @@
 
 /* ─── RESET ─── */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-html { font-size: 16px; scroll-behavior: smooth; }
+html { font-size: 16px; scroll-behavior: smooth; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 /* ─── TOKENS ─── */
 :root {
@@ -409,6 +409,8 @@ html { overflow-x: hidden; }
   .grid-2-3 { grid-template-columns: 1fr; }
   .veh-grid { grid-template-columns: 1fr; gap: 1rem; }
   .kpi .kpi-val { font-size: 1.7rem; }
+  /* fonte 16px nos campos evita o zoom automático do iOS ao focar um input */
+  .input, .select, .textarea { font-size: 16px; }
 }
 
 @media (max-width: 560px) {
