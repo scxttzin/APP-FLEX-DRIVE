@@ -282,7 +282,7 @@ table.tbl tbody tr:hover { background: rgba(235,242,255,0.5); }
 .cal { user-select: none; }
 .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
 .cal-head .cal-month { font-weight: 700; font-size: 1rem; letter-spacing: -0.02em; text-transform: capitalize; }
-.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
 .cal-dow { text-align: center; font-size: 0.68rem; font-weight: 700; color: var(--gray-4); text-transform: uppercase; padding-bottom: 4px; }
 .cal-cell { aspect-ratio: 1; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 500; color: var(--gray-2); position: relative; transition: all .15s; }
 .cal-cell.empty { background: none; }
@@ -386,19 +386,49 @@ table.tbl tbody tr:hover { background: rgba(235,242,255,0.5); }
    ═══════════════════════════════════════════════════════════ */
 .backdrop { display: none; position: fixed; inset: 0; background: rgba(26,29,35,0.4); z-index: 35; }
 
+/* Anti-overflow: permite que tabelas e conteúdos encolham dentro de grids/flex
+   (sem isso, uma tabela larga empurra a página inteira além da tela no mobile). */
+html { overflow-x: hidden; }
+.main { min-width: 0; }
+.content { min-width: 0; }
+.grid-cols > *, .kpi-grid > *, .veh-grid > *, .panel { min-width: 0; }
+.table-wrap { max-width: 100%; }
+.topbar > div { min-width: 0; }
+.topbar .page-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 @media (max-width: 900px) {
   .sidebar { transform: translateX(-100%); }
   .sidebar.open { transform: translateX(0); }
   .main { margin-left: 0; }
   .menu-toggle { display: grid; place-items: center; }
   .backdrop.show { display: block; }
-  .content { padding: 1.2rem; }
+  .content { padding: 1.1rem; max-width: 100%; }
   .form-grid { grid-template-columns: 1fr; }
+  .kpi-grid { grid-template-columns: 1fr; gap: 0.9rem; }
+  .grid-cols { gap: 1.1rem; }
+  .grid-2-3 { grid-template-columns: 1fr; }
+  .veh-grid { grid-template-columns: 1fr; gap: 1rem; }
+  .kpi .kpi-val { font-size: 1.7rem; }
 }
 
 @media (max-width: 560px) {
-  .topbar { padding: 0.8rem 1rem; }
-  .kpi .kpi-val { font-size: 1.6rem; }
+  .topbar { padding: 0.7rem 0.9rem; gap: 0.6rem; }
+  .topbar .page-title { font-size: 1.05rem; }
+  .topbar .page-sub { font-size: 0.72rem; }
+  .content { padding: 0.85rem; }
+  .panel { padding: 1.1rem 1rem; }
+  .kpi { padding: 1.05rem 1.1rem; }
+  .kpi .kpi-val { font-size: 1.5rem; }
+  .modal-overlay { padding: 0.7rem; }
+  .modal-head { padding: 1.05rem 1.05rem; }
+  .modal-body { padding: 1.1rem 1.05rem; }
+  .modal-foot { padding: 1rem 1.05rem; flex-wrap: wrap; }
+  .form-grid { grid-template-columns: 1fr; }
+  .pay-hero { padding: 1.3rem 1.2rem; }
+  .pay-hero .ph-val { font-size: 2rem; }
+  table.tbl th, table.tbl td { padding: 0.6rem 0.55rem; }
+  .seg { flex-wrap: wrap; }
+  h2 { font-size: 1.3rem; }
   .toast-stack { left: 12px; right: 12px; bottom: 12px; }
   .toast { min-width: 0; }
 }
