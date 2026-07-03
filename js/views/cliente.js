@@ -393,7 +393,7 @@ export async function renderCliente(root, user, onLogout) {
           <div class="field"><label>Foto do painel (quilometragem)</label>
             <div class="upload-mini" id="km-drop">${icon('camera')} Toque para tirar / enviar a foto</div>
             <input type="file" id="km-file" accept="image/*" capture="environment" hidden></div>
-          <div class="field" style="margin-bottom:0"><label>Observação (opcional)</label><textarea class="textarea" name="description" placeholder="Descreva o problema, se houver"></textarea></div>
+          <div class="field" style="margin-bottom:0"><label id="desc-label">Observação (opcional)</label><textarea class="textarea" name="description" placeholder="Descreva o problema, se houver"></textarea></div>
         </form>`,
       footer: `<button class="btn btn-glass" data-cancel>Cancelar</button><button class="btn btn-blue" data-save disabled>${icon('send')} Enviar solicitação</button>`,
     });
@@ -402,6 +402,17 @@ export async function renderCliente(root, user, onLogout) {
     const drop = m.overlay.querySelector('#km-drop');
     const fin = m.overlay.querySelector('#km-file');
     const send = m.overlay.querySelector('[data-save]');
+    // "Outros" → o campo vira "Descrição" e passa a ser obrigatório
+    const wearSel = m.overlay.querySelector('[name="wear_type"]');
+    const descLabel = m.overlay.querySelector('#desc-label');
+    const descField = m.overlay.querySelector('[name="description"]');
+    const syncDesc = () => {
+      const outros = wearSel && wearSel.value === 'outros';
+      descLabel.textContent = outros ? 'Descrição' : 'Observação (opcional)';
+      descField.required = !!outros;
+      descField.placeholder = outros ? 'Descreva o problema (obrigatório)' : 'Descreva o problema, se houver';
+    };
+    if (wearSel) { wearSel.onchange = syncDesc; syncDesc(); }
     const setPhoto = (file) => { photo = file; drop.classList.add('has-file'); drop.innerHTML = `${icon('check')} ${escapeHtml(file.name)}`; send.disabled = false; };
     drop.onclick = () => fin.click();
     fin.onchange = () => { if (fin.files[0]) setPhoto(fin.files[0]); };

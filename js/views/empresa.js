@@ -393,6 +393,8 @@ export async function renderEmpresa(root, user, onLogout) {
       const d = Object.fromEntries(new FormData(f));
       const partner = partners.find((p) => p.id === d.partner_id);
       await api.saveMaintenance({ id: m.id, status: 'agendada', scheduled_date: d.scheduled_date, cost: Number(d.cost || 0), partner_id: d.partner_id || null, partner_name: partner?.name || null, partner_location: partner?.location || null, partner_link: partner?.map_link || null });
+      // atualiza a quilometragem do veículo com a km informada pelo motorista no pedido
+      if (m.km && veh) await api.saveVehicle({ id: veh.id, km: Math.max(Number(veh.km) || 0, Number(m.km)) });
       toast('Manutenção agendada! O motorista foi avisado. 🔧', 'ok');
       mod.close(); after && after();
     };
