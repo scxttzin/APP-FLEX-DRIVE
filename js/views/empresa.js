@@ -1041,17 +1041,19 @@ export async function renderEmpresa(root, user, onLogout) {
     const vig = vigencia(c.end_date);
     const st = c.status === 'renovacao_solicitada' ? 'renovacao_solicitada' : (c.status === 'substituido' ? 'substituido' : (vig.vencido ? 'vencido' : 'vigente'));
     return `
-      <div class="file-row" style="align-items:center">
+      <div class="file-row" style="align-items:center;flex-wrap:wrap;gap:10px">
         <div class="file-ico">${icon('doc')}</div>
-        <div class="f-meta">
+        <div class="f-meta" style="flex:1 1 150px;min-width:150px">
           <div class="f-name">${escapeHtml(c.title || 'Contrato')}</div>
           ${c.client_id ? `<div class="f-sub">Motorista: <strong style="color:var(--blue)">${escapeHtml(clientName(c.client_id))}</strong></div>` : ''}
           <div class="f-sub">${escapeHtml(vehiclesMap[c.vehicle_id]?.plate || '—')} · ${c.end_date ? vig.texto : 'sem vigência'}</div>
         </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto">
         ${badge(st)}
         ${c.status === 'renovacao_solicitada' ? `<button class="btn btn-blue btn-sm" data-renew-ct="${c.id}">${icon('renew')} Renovar</button>` : ''}
         <button class="icon-btn" title="Abrir" data-open='contract:${c.id}'>${icon('eye')}</button>
         <button class="icon-btn danger" title="Excluir" data-delfile='contract:${c.id}'>${icon('trash')}</button>
+        </div>
       </div>`;
   }
 

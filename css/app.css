@@ -436,3 +436,24 @@ html { overflow-x: hidden; }
   /* Notificações: ancora à tela inteira (não ao sino) para não cortar nas bordas */
   .notif-dropdown { position: fixed; top: 66px; left: 10px; right: 10px; width: auto; max-width: none; max-height: 72vh; }
 }
+
+@media (max-width: 640px) {
+  /* Reforço anti-zoom do iOS: todo campo com 16px */
+  input, select, textarea, .input, .select { font-size: 16px; }
+
+  /* Tabelas viram cards empilhados — não precisa mais rolar para o lado */
+  .table-wrap { overflow-x: visible; }
+  table.tbl thead { display: none; }
+  table.tbl, table.tbl tbody, table.tbl tr, table.tbl td { display: block; width: 100%; }
+  table.tbl tr { border: 1px solid var(--gray-6); border-radius: var(--radius-sm); padding: 0.5rem 0.9rem; margin-bottom: 0.7rem; background: rgba(255,255,255,0.55); }
+  table.tbl tbody tr:hover { background: rgba(255,255,255,0.55); }
+  table.tbl td { border: none; padding: 0.34rem 0; display: flex; justify-content: space-between; align-items: center; gap: 1rem; text-align: right; white-space: normal; }
+  table.tbl td::before { content: attr(data-label); font-weight: 600; color: var(--gray-3); text-align: left; flex-shrink: 0; }
+  table.tbl td:empty { display: none; }
+  table.tbl td.row-actions { justify-content: flex-end; padding-top: 0.5rem; }
+  table.tbl td.row-actions::before { display: none; }
+
+  /* Linhas de arquivo (contratos/documentos): quebram para os botões não cobrirem o texto */
+  .file-row { flex-wrap: wrap; }
+  .file-row .f-meta { flex: 1 1 60%; }
+}

@@ -49,6 +49,17 @@ export function buildShell({ root, user, roleLabel, nav, onNav, onLogout }) {
   const navList = root.querySelector('#nav-list');
   const content = root.querySelector('#content');
 
+  // Rotula as células das tabelas (data-label) para virarem cards legíveis no mobile
+  const labelizeTables = () => {
+    content.querySelectorAll('table.tbl').forEach((tbl) => {
+      const heads = [...tbl.querySelectorAll('thead th')].map((th) => th.textContent.trim());
+      tbl.querySelectorAll('tbody tr').forEach((tr) => {
+        [...tr.children].forEach((td, i) => { if (heads[i] && !td.hasAttribute('data-label')) td.setAttribute('data-label', heads[i]); });
+      });
+    });
+  };
+  new MutationObserver(labelizeTables).observe(content, { childList: true, subtree: true });
+
   const closeSidebar = () => { sidebar.classList.remove('open'); backdrop.classList.remove('show'); };
   root.querySelector('#menu-toggle').onclick = () => { sidebar.classList.add('open'); backdrop.classList.add('show'); };
   backdrop.onclick = closeSidebar;
