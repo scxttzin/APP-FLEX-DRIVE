@@ -437,7 +437,7 @@ html { overflow-x: hidden; }
   .notif-dropdown { position: fixed; top: 66px; left: 10px; right: 10px; width: auto; max-width: none; max-height: 72vh; }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 900px) {
   /* Reforço anti-zoom do iOS: todo campo com 16px */
   input, select, textarea, .input, .select { font-size: 16px; }
 
