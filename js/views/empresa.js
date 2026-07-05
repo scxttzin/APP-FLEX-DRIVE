@@ -43,6 +43,7 @@ export async function renderEmpresa(root, user, onLogout) {
   async function go(key) {
     shell.setActive(key);
     refreshNotifications();
+    document.body.classList.toggle('dash-active', key === 'dashboard');
     shell.content.innerHTML = loading();
     try {
       if (key === 'dashboard') await pageDashboard();
@@ -84,50 +85,45 @@ export async function renderEmpresa(root, user, onLogout) {
           ${kpi('wrench', 'Manutenções abertas', `${manutAbertas.length}`, `${emManut} veículo(s) parado(s)`)}
         </div>
 
-        <div class="grid-cols grid-2-3">
-          <div>
-            <div class="panel glass">
-              <div class="panel-head"><span class="panel-ico">${icon('payments')}</span><h3>Próximos recebimentos</h3>
-                <button class="btn btn-ghost btn-sm" id="ver-pag">Ver todos</button></div>
-              ${proximos.length ? `
-                <div class="table-wrap"><table class="tbl">
-                  <thead><tr><th>Motorista</th><th>Veículo</th><th>Vencimento</th><th>Valor</th><th>Status</th><th></th></tr></thead>
-                  <tbody>
-                    ${proximos.map((p) => `
-                      <tr>
-                        <td class="cell-strong">${escapeHtml(clientName(p.client_id))}</td>
-                        <td class="muted">${escapeHtml(vehicleLabel(p.vehicle_id))}</td>
-                        <td>${fmt.date(p.due_date)}</td>
-                        <td class="cell-strong mono">${fmt.money(p.amount)}</td>
-                        <td>${badge(paymentStatus(p))}</td>
-                        <td class="row-actions"><button class="btn btn-blue btn-sm" data-pay="${p.id}">${icon('check')} Receber</button></td>
-                      </tr>`).join('')}
-                  </tbody>
-                </table></div>` : emptyBox('Nenhum recebimento pendente. Tudo em dia! 🎉')}
+        <div class="panel glass">
+          <div class="panel-head"><span class="panel-ico">${icon('payments')}</span><h3>Próximos recebimentos</h3>
+            <button class="btn btn-ghost btn-sm" id="ver-pag">Ver todos</button></div>
+          ${proximos.length ? `
+            <div class="table-wrap"><table class="tbl">
+              <thead><tr><th>Motorista</th><th>Vencimento</th><th>Valor</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                ${proximos.map((p) => `
+                  <tr>
+                    <td><div class="cell-drv cell-strong">${escapeHtml(clientName(p.client_id))}<div class="cell-sub">${escapeHtml(vehicleLabel(p.vehicle_id))}</div></div></td>
+                    <td class="nowrap">${fmt.date(p.due_date)}</td>
+                    <td class="cell-strong mono nowrap">${fmt.money(p.amount)}</td>
+                    <td>${badge(paymentStatus(p))}</td>
+                    <td class="row-actions"><button class="btn btn-blue btn-sm" data-pay="${p.id}">${icon('check')} Receber</button></td>
+                  </tr>`).join('')}
+              </tbody>
+            </table></div>` : emptyBox('Nenhum recebimento pendente. Tudo em dia! 🎉')}
+        </div>
+
+        <div class="grid-cols grid-2">
+          <div class="panel glass">
+            <div class="panel-head"><span class="panel-ico">${icon('car')}</span><h3>Status da frota</h3></div>
+            ${fleetBar(locados, disponiveis, emManut, vehicles.length)}
+            <div class="info-list" style="margin-top:1rem">
+              <div class="info-row"><span class="k">${badge('locado')}</span><span class="v">${locados}</span></div>
+              <div class="info-row"><span class="k">${badge('disponivel')}</span><span class="v">${disponiveis}</span></div>
+              <div class="info-row"><span class="k">${badge('manutencao')}</span><span class="v">${emManut}</span></div>
             </div>
           </div>
 
-          <div>
-            <div class="panel glass">
-              <div class="panel-head"><span class="panel-ico">${icon('car')}</span><h3>Status da frota</h3></div>
-              ${fleetBar(locados, disponiveis, emManut, vehicles.length)}
-              <div class="info-list" style="margin-top:1rem">
-                <div class="info-row"><span class="k">${badge('locado')}</span><span class="v">${locados}</span></div>
-                <div class="info-row"><span class="k">${badge('disponivel')}</span><span class="v">${disponiveis}</span></div>
-                <div class="info-row"><span class="k">${badge('manutencao')}</span><span class="v">${emManut}</span></div>
-              </div>
-            </div>
-
-            <div class="panel glass">
-              <div class="panel-head"><span class="panel-ico">${icon('wrench')}</span><h3>Manutenções próximas</h3></div>
-              ${manutAbertas.length ? manutAbertas.slice(0, 4).map((m) => `
-                <div class="file-row" style="background:transparent;border:none;padding:.5rem 0;margin:0">
-                  <div class="file-ico blue">${icon('wrench')}</div>
-                  <div class="f-meta"><div class="f-name">${escapeHtml(m.type)} · ${escapeHtml(vehiclesMap[m.vehicle_id]?.plate || '')}</div>
-                    <div class="f-sub">${fmt.date(m.scheduled_date)} · ${fmt.money(m.cost)}</div></div>
-                  ${badge(m.status)}
-                </div>`).join('') : emptyBox('Sem manutenções agendadas.')}
-            </div>
+          <div class="panel glass">
+            <div class="panel-head"><span class="panel-ico">${icon('wrench')}</span><h3>Manutenções próximas</h3></div>
+            ${manutAbertas.length ? manutAbertas.slice(0, 4).map((m) => `
+              <div class="file-row" style="background:transparent;border:none;padding:.5rem 0;margin:0">
+                <div class="file-ico blue">${icon('wrench')}</div>
+                <div class="f-meta"><div class="f-name">${escapeHtml(m.type)} · ${escapeHtml(vehiclesMap[m.vehicle_id]?.plate || '')}</div>
+                  <div class="f-sub">${fmt.date(m.scheduled_date)} · ${fmt.money(m.cost)}</div></div>
+                ${badge(m.status)}
+              </div>`).join('') : emptyBox('Sem manutenções agendadas.')}
           </div>
         </div>
       </div>`;
@@ -161,16 +157,15 @@ export async function renderEmpresa(root, user, onLogout) {
             <button class="btn btn-ghost btn-sm" id="novo-plano">${icon('calendar')} Gerar plano semanal</button>
             <button class="btn btn-blue btn-sm" id="novo-pag">${icon('plus')} Novo lançamento</button></div>
           <div class="table-wrap"><table class="tbl">
-            <thead><tr><th>Motorista</th><th>Veículo</th><th>Vencimento</th><th>Pago em</th><th>Forma</th><th>Valor</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Motorista</th><th>Vencimento</th><th>Pago em</th><th>Forma</th><th>Valor</th><th>Status</th><th></th></tr></thead>
             <tbody>
               ${payments.length ? payments.map((p) => `
                 <tr>
-                  <td class="cell-strong">${escapeHtml(clientName(p.client_id))}</td>
-                  <td class="muted">${escapeHtml(vehicleLabel(p.vehicle_id))}</td>
-                  <td>${fmt.date(p.due_date)}</td>
-                  <td class="muted">${p.paid_date ? fmt.date(p.paid_date) : '—'}</td>
-                  <td class="muted">${escapeHtml(p.method || '—')}</td>
-                  <td class="cell-strong mono">${fmt.money(p.amount)}</td>
+                  <td><div class="cell-drv cell-strong">${escapeHtml(clientName(p.client_id))}<div class="cell-sub">${escapeHtml(vehicleLabel(p.vehicle_id))}</div></div></td>
+                  <td class="nowrap">${fmt.date(p.due_date)}</td>
+                  <td class="muted nowrap">${p.paid_date ? fmt.date(p.paid_date) : '—'}</td>
+                  <td class="muted nowrap">${escapeHtml(p.method || '—')}</td>
+                  <td class="cell-strong mono nowrap">${fmt.money(p.amount)}</td>
                   <td>${badge(paymentStatus(p))}</td>
                   <td class="row-actions">
                     ${paymentStatus(p) === 'em_analise' ? `<button class="icon-btn" title="Ver comprovante" data-receipt="${p.id}">${icon('eye')}</button>` : ''}
@@ -178,7 +173,7 @@ export async function renderEmpresa(root, user, onLogout) {
                     <button class="icon-btn" title="Editar" data-edit="${p.id}">${icon('edit')}</button>
                     <button class="icon-btn danger" title="Excluir" data-del="${p.id}">${icon('trash')}</button>
                   </td>
-                </tr>`).join('') : `<tr><td colspan="8">${emptyBox('Nenhum pagamento lançado.')}</td></tr>`}
+                </tr>`).join('') : `<tr><td colspan="7">${emptyBox('Nenhum pagamento lançado.')}</td></tr>`}
             </tbody>
           </table></div>
         </div>
