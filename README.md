@@ -15,7 +15,8 @@ Construído no mesmo visual do *WEBSITE FLEX DRIVE* — azul/branco/cinza, tema 
 - **Próximo pagamento da semana** em destaque + **calendário** com vencimentos/pagos/atrasados.
 - Acesso rápido ao **contrato assinado** (abrir/baixar).
 - **Dados do veículo** e documentação disponibilizada do carro.
-- **Solicitar contato** com a empresa (formulário + WhatsApp + e-mail).
+- **Assistente virtual (chatbot)** na aba *Falar com a empresa*: o motorista tira dúvidas conversando (pagamento, contrato, veículo, manutenção, documentos) e só é transferido para o **WhatsApp comercial** quando o assistente não resolve. Usa **IA (Claude)** quando configurado; caso contrário, um assistente local baseado em conhecimento (funciona no Modo Demo, offline e sem custo).
+- Também é possível **abrir um chamado** formal (formulário) + WhatsApp + e-mail.
 
 ## Tecnologia
 - Frontend: HTML + CSS + JavaScript (módulos ES), **sem build**.

@@ -21,6 +21,7 @@ export const CONFIG = {
     nome: 'Flex Drive',
     whatsapp: '5561999999999',      // só números, com DDI 55
     email: 'contato@flexdrive.com.br',
+    instagram: 'https://www.instagram.com/flexdrive/',  // ajuste para o @ real da Flex Drive
     site: 'https://scxttzin.github.io/WEBSITE-FLEX-DRIVE/',
 
     // PIX — usado na tela de pagamento do cliente (copia e cola + QR)
@@ -29,6 +30,19 @@ export const CONFIG = {
       nome: 'Flex Drive Locadora',  // nome do recebedor (sem acentos, máx 25)
       cidade: 'Brasilia',           // cidade do recebedor (sem acentos, máx 15)
     },
+  },
+
+  // ASSISTENTE (chatbot) da aba "Falar com a empresa"
+  CHATBOT: {
+    nome: 'Flex App',
+    papel: 'Assistente virtual',
+    saudacao: 'Oi! 👋 Eu sou o Flex App, o assistente virtual da Flex Drive. Pode me perguntar o que quiser sobre pagamentos, contrato, seu veículo, manutenção, documentos ou a empresa — respondo aqui mesmo. Como posso ajudar?',
+
+    // Com Supabase configurado e usarIA=true, o app usa a IA real (Claude)
+    // através da Edge Function abaixo — ela responde perguntas livres, não só
+    // as prontas. Em Modo Demo (ou se a IA falhar), usa o assistente local.
+    usarIA: true,
+    funcao: 'chat-assistant',   // nome da Edge Function do Supabase
   },
 };
 

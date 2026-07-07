@@ -70,6 +70,31 @@ O Supabase dá **login de verdade + banco de dados + armazenamento de PDFs**, tu
 Quer começar com veículos de exemplo? Abra `supabase/seed.sql`, siga o comentário no topo
 (troque os IDs pelos dos seus clientes) e rode no **SQL Editor**. Ou simplesmente cadastre tudo pela tela da Empresa.
 
+### Passo 6 (opcional) — Ativar a IA do assistente (chatbot)
+O assistente da aba **Falar com a empresa** já funciona sem configurar nada: em Modo Demo (ou enquanto a IA não estiver ligada) ele usa um **assistente local** baseado em conhecimento, que responde dúvidas comuns e transfere para o WhatsApp quando não resolve.
+
+Para respostas com **IA de verdade (Claude)**, publique a Edge Function e configure a chave:
+
+1. Instale a CLI do Supabase (uma vez): veja https://supabase.com/docs/guides/cli
+2. Faça login e conecte ao projeto:
+   ```bash
+   supabase login
+   supabase link --project-ref SEU_PROJECT_REF
+   ```
+3. Configure a chave da API da Claude como **secret** (pegue em https://console.anthropic.com):
+   ```bash
+   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+   ```
+4. Publique a função:
+   ```bash
+   supabase functions deploy chat-assistant
+   ```
+5. Pronto! Com o Supabase ligado e `CHATBOT.usarIA: true` no `js/config.js` (padrão), o app passa a usar a IA.
+   Se a IA ficar indisponível, o app volta sozinho para o assistente local — o atendimento nunca cai.
+
+> Ajuste o texto/persona em `js/config.js` (bloco `CHATBOT`) e o conhecimento da IA no arquivo
+> `supabase/functions/chat-assistant/index.ts`.
+
 ---
 
 ## 🌐 3. Publicar no GitHub (repositório novo e separado)
@@ -114,12 +139,15 @@ APP FLEX DRIVE/
 │  ├─ app.js             ← entrada (login → empresa/cliente)
 │  ├─ api.js             ← camada de dados (demo ↔ Supabase)
 │  ├─ ui.js              ← ícones, formatação BR, modais, toasts
+│  ├─ chatbot.js         ← assistente da aba "Falar com a empresa" (IA + local)
 │  ├─ mockData.js        ← dados de exemplo do Modo Demo
 │  └─ views/             ← telas (login, empresa, cliente, shell)
 ├─ assets/               ← logo e imagens
 └─ supabase/
    ├─ schema.sql         ← rode no Supabase (tabelas + segurança)
-   └─ seed.sql           ← dados de exemplo (opcional)
+   ├─ seed.sql           ← dados de exemplo (opcional)
+   └─ functions/
+      └─ chat-assistant/ ← Edge Function do chatbot (IA Claude) — opcional
 ```
 
 Dúvidas ou próximos passos (notificações, app instalável/PWA, relatórios em PDF)? É só pedir. 🚀

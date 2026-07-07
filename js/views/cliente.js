@@ -5,6 +5,7 @@ import { api } from '../api.js';
 import { CONFIG } from '../config.js';
 import { buildShell } from './shell.js';
 import { pixPayload, pixQrDataUrl } from '../pix.js';
+import { buildDriverContext, askAssistant, whatsappHandoffUrl, assistantMode } from '../chatbot.js';
 import {
   icon, fmt, badge, toast, modal, openFile, copyText,
   paymentStatus, todayISO, daysFromToday, escapeHtml, vigencia, safeUrl,
@@ -491,46 +492,235 @@ export async function renderCliente(root, user, onLogout) {
     });
   }
 
-  /* ════════════ CONTATO ════════════ */
+  /* ════════════ CONTATO (chat com assistente) ════════════ */
   async function pageContato() {
-    shell.setTitle('Falar com a empresa', 'Estamos aqui para ajudar');
-    const reqs = await api.listRequests({ client_id: user.id });
+    shell.setTitle('Falar com a empresa', 'Fale com o Flex App — respondo qualquer dúvida aqui mesmo');
+    const [{ vehicle, payments }, contracts] = await Promise.all([
+      loadAll(),
+      api.listContracts({ client_id: user.id }),
+    ]);
+    const contract = (contracts || []).find((c) => c.status !== 'substituido') || (contracts || [])[0] || null;
+    const ctx = buildDriverContext({ user, vehicle, payments, contract });
+    const papel = CONFIG.CHATBOT?.papel || 'Assistente virtual';
+    const ig = safeUrl(CONFIG.EMPRESA.instagram || '');
+
     shell.content.innerHTML = `
       <div class="fade-in">
         <div class="grid-cols grid-2-3">
-          <div class="panel glass">
-            <div class="panel-head"><span class="panel-ico">${icon('send')}</span><h3>Solicitar contato</h3></div>
-            <form id="f-contato">
-              <div class="field"><label>Assunto</label>
-                <select class="select" name="subject">${['Dúvida sobre pagamento', 'Manutenção do veículo', 'Documentação', 'Troca de veículo', 'Outros'].map((x) => `<option>${x}</option>`).join('')}</select></div>
-              <div class="field"><label>Mensagem</label><textarea class="textarea" name="message" placeholder="Como podemos ajudar?" required></textarea></div>
-              <button class="btn btn-blue btn-block" type="submit">${icon('send')} Enviar solicitação</button>
-            </form>
-            <div style="display:flex;gap:.6rem;margin-top:1rem">
-              <a class="btn btn-glass" style="flex:1" href="https://wa.me/${CONFIG.EMPRESA.whatsapp}" target="_blank" rel="noopener">${icon('whatsapp')} WhatsApp</a>
-              <a class="btn btn-glass" style="flex:1" href="mailto:${CONFIG.EMPRESA.email}">${icon('mail')} E-mail</a>
+          <div class="panel glass chat-panel">
+            <div class="chat-head">
+              <div class="chat-ava">${icon('bot')}</div>
+              <div class="chat-id">
+                <div class="chat-name">${escapeHtml(CONFIG.CHATBOT?.nome || 'Flex App')}</div>
+                <div class="chat-status"><span class="chat-dot"></span>Online · ${escapeHtml(papel)}</div>
+              </div>
+              <a class="btn btn-glass btn-sm chat-wa" href="https://wa.me/${CONFIG.EMPRESA.whatsapp}" target="_blank" rel="noopener" title="Falar no WhatsApp">${icon('whatsapp')}</a>
             </div>
+            <div class="chat-scroll" id="chat-scroll"></div>
+            <div class="chat-replybar" id="chat-replybar" hidden></div>
+            <form class="chat-input" id="chat-form" autocomplete="off">
+              <input class="chat-field" id="chat-field" placeholder="Escreva sua mensagem…" maxlength="600" required />
+              <button class="chat-send" type="submit" aria-label="Enviar">${icon('send')}</button>
+            </form>
           </div>
 
           <div class="panel glass">
-            <div class="panel-head"><span class="panel-ico">${icon('clock')}</span><h3>Minhas solicitações</h3></div>
-            <div id="req-list">${reqs.length ? reqs.map((r) => `
-              <div class="file-row" style="align-items:flex-start">
-                <div class="file-ico blue">${icon('send')}</div>
-                <div class="f-meta"><div class="f-name">${escapeHtml(r.subject)}</div><div class="f-sub" style="white-space:normal">${escapeHtml(r.message)}</div><div class="f-sub">${fmt.date(r.created_at)}</div></div>
-                ${badge(r.status)}
-              </div>`).join('') : `<div class="empty">${icon('info', 'empty-ico')}<p>Nenhuma solicitação ainda.</p></div>`}</div>
+            <div class="panel-head"><span class="panel-ico">${icon('phone')}</span><h3>Contato rápido</h3></div>
+            <p class="body-sm" style="margin-bottom:1rem">Prefere falar direto com a equipe Flex Drive? Escolha um canal:</p>
+            <div class="quick-contact">
+              <a class="quick-item wa" href="https://wa.me/${CONFIG.EMPRESA.whatsapp}" target="_blank" rel="noopener">
+                <span class="qi-ico">${icon('whatsapp')}</span>
+                <span class="qi-txt"><b>WhatsApp</b><small>Atendimento comercial</small></span>
+              </a>
+              <a class="quick-item mail" href="mailto:${escapeHtml(CONFIG.EMPRESA.email)}">
+                <span class="qi-ico">${icon('mail')}</span>
+                <span class="qi-txt"><b>E-mail comercial</b><small>${escapeHtml(CONFIG.EMPRESA.email)}</small></span>
+              </a>
+              ${ig ? `<a class="quick-item ig" href="${ig}" target="_blank" rel="noopener">
+                <span class="qi-ico">${icon('instagram')}</span>
+                <span class="qi-txt"><b>Instagram</b><small>Novidades e bastidores</small></span>
+              </a>` : ''}
+            </div>
           </div>
         </div>
       </div>`;
 
-    shell.content.querySelector('#f-contato').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const f = e.target;
-      await api.createRequest({ client_id: user.id, subject: f.subject.value, message: f.message.value });
-      toast('Solicitação enviada! Entraremos em contato. 📨', 'ok');
-      go('contato');
-    });
+    const scroll = shell.content.querySelector('#chat-scroll');
+    const form = shell.content.querySelector('#chat-form');
+    const field = shell.content.querySelector('#chat-field');
+    const history = [];
+    let busy = false;
+    let ended = false;                       // conversa encerrada por inatividade
+    let idleTimer = null, nudgeTimer = null, nudged = false;
+    const CLOSE_MS = 10 * 60 * 1000;         // 10 min sem retorno → encerra
+    const NUDGE_MS = 55 * 1000;              // ~1 min em silêncio → Flex App puxa conversa
+
+    let msgSeq = 0;                          // id incremental de cada mensagem
+    const store = new Map();                 // id → { role, text } (para citar)
+    let replyTo = null;                      // mensagem sendo citada { id, role, text }
+
+    const fmtMsg = (t) => escapeHtml(t).replace(/\n/g, '<br>');
+    const scrollDown = () => { scroll.scrollTop = scroll.scrollHeight; };
+    const clip = (t) => { const s = String(t || '').replace(/\s+/g, ' ').trim(); return s.length > 90 ? s.slice(0, 90) + '…' : s; };
+    const whoLabel = (role) => (role === 'user' ? 'Você' : (CONFIG.CHATBOT?.nome || 'Flex App'));
+
+    function addMsg(role, text, quote) {
+      const id = ++msgSeq;
+      store.set(id, { role, text });
+      const el = document.createElement('div');
+      el.className = `chat-msg ${role === 'user' ? 'me' : 'bot'}`;
+      el.dataset.mid = String(id);
+      const quoteHtml = quote
+        ? `<div class="chat-quote"><b>${escapeHtml(whoLabel(quote.role))}</b><span>${escapeHtml(clip(quote.text))}</span></div>`
+        : '';
+      const avatar = role === 'user' ? '' : `<div class="chat-mini-ava">${icon('bot')}</div>`;
+      el.innerHTML = `${avatar}<div class="bubble">${quoteHtml}${fmtMsg(text)}</div><button class="chat-reply-btn" type="button" title="Responder" aria-label="Responder">${icon('reply')}</button>`;
+      el.querySelector('.chat-reply-btn').addEventListener('click', () => startReply(id));
+      scroll.appendChild(el);
+      scrollDown();
+      return el;
+    }
+
+    // Inicia uma resposta citando a mensagem `id` (estilo WhatsApp)
+    function startReply(id) {
+      if (ended) return;
+      const m = store.get(id);
+      if (!m) return;
+      replyTo = { id, role: m.role, text: m.text };
+      renderReplyBar();
+      field.focus();
+    }
+
+    function renderReplyBar() {
+      const bar = shell.content.querySelector('#chat-replybar');
+      if (!bar) return;
+      if (!replyTo) { bar.hidden = true; bar.innerHTML = ''; return; }
+      bar.hidden = false;
+      bar.innerHTML = `
+        <div class="rb-line"></div>
+        <div class="rb-body"><b>${icon('reply')} Respondendo a ${escapeHtml(whoLabel(replyTo.role))}</b><span>${escapeHtml(clip(replyTo.text))}</span></div>
+        <button class="rb-close" type="button" aria-label="Cancelar">${icon('close')}</button>`;
+      bar.querySelector('.rb-close').addEventListener('click', () => { replyTo = null; renderReplyBar(); });
+    }
+
+    function addChips(items, onPick) {
+      if (!items || !items.length) return;
+      const wrap = document.createElement('div');
+      wrap.className = 'chat-chips';
+      items.forEach((label) => {
+        const b = document.createElement('button');
+        b.className = 'chat-chip';
+        b.type = 'button';
+        b.textContent = label;
+        b.onclick = () => { wrap.remove(); onPick(label); };
+        wrap.appendChild(b);
+      });
+      scroll.appendChild(wrap);
+      scrollDown();
+    }
+
+    function addEscalation() {
+      const last = [...history].reverse().find((m) => m.role === 'user');
+      const url = safeUrl(whatsappHandoffUrl(ctx, last?.content || ''));
+      const wrap = document.createElement('div');
+      wrap.className = 'chat-escalate';
+      wrap.innerHTML = `
+        <p>${icon('whatsapp')} Vou te passar para um atendente da Flex Drive.</p>
+        <a class="btn btn-blue btn-block" href="${url}" target="_blank" rel="noopener">${icon('whatsapp')} Continuar no WhatsApp</a>`;
+      scroll.appendChild(wrap);
+      scrollDown();
+    }
+
+    function typing(on) {
+      let t = scroll.querySelector('.chat-typing');
+      if (on && !t) {
+        t = document.createElement('div');
+        t.className = 'chat-msg bot chat-typing';
+        t.innerHTML = `<div class="chat-mini-ava">${icon('bot')}</div><div class="bubble"><span class="dots"><i></i><i></i><i></i></span></div>`;
+        scroll.appendChild(t);
+        scrollDown();
+      } else if (!on && t) { t.remove(); }
+    }
+
+    // Reinicia o relógio de inatividade (10 min → encerra a conversa)
+    function scheduleClose() {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(closeConversation, CLOSE_MS);
+    }
+
+    // Depois de responder, se o motorista ficar em silêncio, o Flex App puxa
+    // conversa por conta própria (uma vez) — deixa o papo mais real.
+    function scheduleNudge() {
+      clearTimeout(nudgeTimer);
+      if (nudged) return;
+      nudgeTimer = setTimeout(() => {
+        if (ended || nudged || busy || !scroll.isConnected) return;
+        nudged = true;
+        const msg = 'Ainda por aí? 😊 Se tiver qualquer outra dúvida sobre pagamento, contrato ou o carro, é só me escrever aqui.';
+        addMsg('bot', msg);
+        history.push({ role: 'assistant', content: msg });
+      }, NUDGE_MS);
+    }
+
+    function closeConversation() {
+      if (ended || !scroll.isConnected) return;
+      ended = true;
+      clearTimeout(idleTimer); clearTimeout(nudgeTimer);
+      const msg = 'Como faz um tempinho que não recebo resposta, vou encerrar esta conversa por aqui. 👋 Quando precisar, é só iniciar de novo — estou sempre por aqui!';
+      addMsg('bot', msg);
+      history.push({ role: 'assistant', content: msg });
+      field.disabled = true;
+      field.placeholder = 'Conversa encerrada';
+      const sendBtn = form.querySelector('.chat-send');
+      if (sendBtn) sendBtn.disabled = true;
+      const wrap = document.createElement('div');
+      wrap.className = 'chat-ended';
+      wrap.innerHTML = `<span>Conversa encerrada por inatividade</span><button class="btn btn-glass btn-sm" id="chat-restart">${icon('renew')} Iniciar nova conversa</button>`;
+      scroll.appendChild(wrap);
+      scrollDown();
+      wrap.querySelector('#chat-restart').onclick = () => go('contato');
+    }
+
+    async function send(text) {
+      const msg = (text || '').trim();
+      if (!msg || busy || ended) return;
+      busy = true;
+      clearTimeout(nudgeTimer); nudged = false;   // motorista interagiu
+      const q = replyTo;                          // mensagem citada (se houver)
+      replyTo = null; renderReplyBar();
+      field.value = '';
+      addMsg('user', msg, q);
+      // Dá o contexto da citação ao assistente, para ele responder "citando"
+      const forModel = q ? `(Respondendo à mensagem ${q.role === 'user' ? 'que eu enviei' : 'do assistente'}: "${clip(q.text)}") ${msg}` : msg;
+      history.push({ role: 'user', content: forModel });
+      scheduleClose();
+      typing(true);
+      try {
+        const { reply, escalate, chips } = await askAssistant({ history, context: ctx });
+        typing(false);
+        addMsg('bot', reply, q);                  // a resposta do Flex App cita a mesma mensagem
+        history.push({ role: 'assistant', content: reply });
+        if (escalate) addEscalation();
+        else { addChips(chips, (label) => send(label)); scheduleNudge(); }
+      } catch (err) {
+        typing(false);
+        addMsg('bot', 'Ops, tive um problema para responder agora. Você pode tentar de novo ou falar no WhatsApp.');
+      } finally {
+        busy = false;
+        scheduleClose();
+        if (!ended) field.focus();
+      }
+    }
+
+    // Saudação + sugestões iniciais
+    addMsg('bot', CONFIG.CHATBOT?.saudacao || 'Olá! Como posso ajudar?');
+    history.push({ role: 'assistant', content: CONFIG.CHATBOT?.saudacao || 'Olá! Como posso ajudar?' });
+    addChips(['Qual meu próximo pagamento?', 'Como faço para pagar?', 'Meu contrato', 'Manutenção'], (label) => send(label));
+    scheduleClose();   // relógio de inatividade começa já na abertura
+    scheduleNudge();
+
+    form.addEventListener('submit', (e) => { e.preventDefault(); send(field.value); });
+    field.focus();
   }
 
   /* ── Sino de notificações do motorista (avisos da empresa) ── */
