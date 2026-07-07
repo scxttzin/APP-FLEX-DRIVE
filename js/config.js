@@ -38,10 +38,11 @@ export const CONFIG = {
     papel: 'Assistente virtual',
     saudacao: 'Oi! 👋 Eu sou o Flex App, o assistente virtual da Flex Drive. Pode me perguntar o que quiser sobre pagamentos, contrato, seu veículo, manutenção, documentos ou a empresa — respondo aqui mesmo. Como posso ajudar?',
 
-    // Com Supabase configurado e usarIA=true, o app usa a IA real (Claude)
-    // através da Edge Function abaixo — ela responde perguntas livres, não só
-    // as prontas. Em Modo Demo (ou se a IA falhar), usa o assistente local.
-    usarIA: true,
+    // usarIA=false → o chat roda 100% no assistente LOCAL (dentro do navegador,
+    // sem custo, sem servidor). É o modo recomendado para não pagar pela IA.
+    // Se um dia quiser respostas livres com IA (Claude), basta pôr usarIA=true
+    // e publicar a Edge Function abaixo (passo a passo no SETUP.md, Passo 6).
+    usarIA: false,
     funcao: 'chat-assistant',   // nome da Edge Function do Supabase
   },
 };
