@@ -29,6 +29,7 @@ export async function renderEmpresa(root, user, onLogout) {
 
   // cache simples de mapas
   let clientsMap = {}, vehiclesMap = {};
+  let currentKey = 'dashboard';
   async function refreshMaps() {
     const [clients, vehicles] = await Promise.all([api.clients(), api.listVehicles()]);
     clientsMap = Object.fromEntries(clients.map((c) => [c.id, c]));
@@ -41,6 +42,7 @@ export async function renderEmpresa(root, user, onLogout) {
   const loading = () => `<div class="loading-screen"><div class="spinner"></div></div>`;
 
   async function go(key) {
+    currentKey = key;
     shell.setActive(key);
     refreshNotifications();
     document.body.classList.toggle('dash-active', key === 'dashboard');
@@ -81,7 +83,7 @@ export async function renderEmpresa(root, user, onLogout) {
         <div class="kpi-grid">
           ${kpi('money', 'Recebido no mês', fmt.money(recebidoMes), `${payments.filter((p) => paymentStatus(p) === 'pago' && (p.paid_date || '').slice(0, 7) === month).length} pagamentos`, 'up')}
           ${kpi('clock', 'A receber', fmt.money(aReceber), `${atrasados.length} em atraso`, atrasados.length ? 'down' : '')}
-          ${kpi('car', 'Frota', `${vehicles.length}`, `${taxaOcupacao}% de ocupação`)}
+          ${kpi('users', 'Motoristas', `${Object.keys(clientsMap).length}`, 'cadastrados')}
           ${kpi('wrench', 'Manutenções abertas', `${manutAbertas.length}`, `${emManut} veículo(s) parado(s)`)}
         </div>
 
@@ -109,6 +111,8 @@ export async function renderEmpresa(root, user, onLogout) {
             <div class="panel-head"><span class="panel-ico">${icon('car')}</span><h3>Status da frota</h3></div>
             ${fleetBar(locados, disponiveis, emManut, vehicles.length)}
             <div class="info-list" style="margin-top:1rem">
+              <div class="info-row"><span class="k">Total de veículos cadastrados</span><span class="v cell-strong">${vehicles.length}</span></div>
+              <div class="info-row"><span class="k">Ocupação</span><span class="v">${taxaOcupacao}%</span></div>
               <div class="info-row"><span class="k">${badge('locado')}</span><span class="v">${locados}</span></div>
               <div class="info-row"><span class="k">${badge('disponivel')}</span><span class="v">${disponiveis}</span></div>
               <div class="info-row"><span class="k">${badge('manutencao')}</span><span class="v">${emManut}</span></div>
@@ -161,15 +165,14 @@ export async function renderEmpresa(root, user, onLogout) {
               <div class="field full"><label>Chave Pix</label><input class="input" name="pix_key" value="${escapeHtml(cfg.pix_key)}" placeholder="CPF, e-mail, telefone ou chave aleatória"></div>
               <div class="field"><label>Nome do recebedor (máx. 25, sem acentos)</label><input class="input" name="pix_name" value="${escapeHtml(cfg.pix_name)}" maxlength="25" placeholder="Flex Drive Locadora"></div>
               <div class="field"><label>Cidade (máx. 15, sem acentos)</label><input class="input" name="pix_city" value="${escapeHtml(cfg.pix_city)}" maxlength="15" placeholder="Brasilia"></div>
-              <div class="field"><label>Juros por dia de atraso (R$)</label><input class="input" type="number" step="0.01" min="0" name="late_fee_per_day" value="${cfg.late_fee_per_day}" placeholder="0,00"></div>
+              <div class="field"><label>Valor fixo de atraso por dia (R$)</label><input class="input" type="number" step="0.01" min="0" name="late_fee_per_day" value="${cfg.late_fee_per_day}" placeholder="25,00"></div>
             </div>
             <button class="btn btn-blue" type="submit">${icon('check')} Salvar configuração</button>
           </form>
         </div>
         <div class="panel glass">
           <div class="panel-head"><span class="panel-ico">${icon('payments')}</span><h3>Todos os recebimentos</h3>
-            <button class="btn btn-ghost btn-sm" id="novo-plano">${icon('calendar')} Gerar plano semanal</button>
-            <button class="btn btn-blue btn-sm" id="novo-pag">${icon('plus')} Novo lançamento</button></div>
+            <button class="btn btn-blue btn-sm" id="novo-plano">${icon('calendar')} Gerar Cobrança semanal</button></div>
           <div class="table-wrap"><table class="tbl">
             <thead><tr><th>Motorista</th><th>Vencimento</th><th>Pago em</th><th>Forma</th><th>Valor</th><th>Status</th><th></th></tr></thead>
             <tbody>
@@ -202,7 +205,6 @@ export async function renderEmpresa(root, user, onLogout) {
       catch (err) { toast('Erro ao salvar: ' + err.message, 'err'); }
       finally { btn.disabled = false; }
     });
-    shell.content.querySelector('#novo-pag').onclick = () => formPagamento(null, () => go('pagamentos'));
     shell.content.querySelector('#novo-plano').onclick = () => formPlano(() => go('pagamentos'));
     shell.content.querySelectorAll('[data-pay]').forEach((b) => b.onclick = () => receberPagamento(b.dataset.pay, () => go('pagamentos')));
     shell.content.querySelectorAll('[data-receipt]').forEach((b) => b.onclick = async () => { const p = payments.find((x) => x.id === b.dataset.receipt); openFile(await api.receiptUrl(p), p.receipt_name || 'comprovante'); });
@@ -643,6 +645,18 @@ export async function renderEmpresa(root, user, onLogout) {
       data.plate = data.plate.toUpperCase(); data.year = Number(data.year); data.km = Number(data.km); data.weekly_value = Number(data.weekly_value || 0);
       if (!data.client_id) data.client_id = null;
       if (isEdit) data.id = v.id;
+      // Regra: um motorista não pode estar vinculado a dois veículos ao mesmo tempo.
+      // Troca é permitida (só a empresa, por aqui), desde que o novo veículo esteja disponível (não locado).
+      if (data.client_id) {
+        const all = await api.listVehicles();
+        const already = all.find((x) => x.client_id === data.client_id && x.id !== (v?.id || null));
+        if (already) {
+          if (!isEdit) { toast('Este motorista já tem um veículo vinculado. Um motorista não pode ter dois veículos.', 'err'); return; }
+          if (v.status !== 'disponivel' && v.client_id !== data.client_id) { toast('Para a troca, o novo veículo precisa estar disponível (não locado).', 'err'); return; }
+          await api.saveVehicle({ id: already.id, client_id: null, status: 'disponivel' });  // libera o veículo anterior
+        }
+        data.status = 'locado';
+      }
       const btn = m.overlay.querySelector('[data-save]'); btn.disabled = true; btn.innerHTML = '<span class="spinner" style="width:16px;height:16px"></span> Salvando...';
       try {
         const saved = await api.saveVehicle(data);
@@ -660,9 +674,27 @@ export async function renderEmpresa(root, user, onLogout) {
     const { clients, vehicles } = await refreshMaps();
     const vehByClient = {};
     vehicles.forEach((v) => { if (v.client_id) (vehByClient[v.client_id] = vehByClient[v.client_id] || []).push(v); });
+    const trocas = (await api.listRequests()).filter((r) => r.subject === 'Troca de veículo' && r.status !== 'fechado');
+    const curVeh = (cid) => { const v = (vehByClient[cid] || [])[0]; return v ? `${v.brand} ${v.model} · ${v.plate}` : '—'; };
 
     shell.content.innerHTML = `
       <div class="fade-in">
+        ${trocas.length ? `
+        <div class="panel glass">
+          <div class="panel-head"><span class="panel-ico">${icon('renew')}</span><h3>Solicitações de troca de veículo</h3>
+            <span class="badge badge-amber"><span class="dot"></span>${trocas.length} nova(s)</span></div>
+          ${trocas.map((r) => `
+            <div class="file-row" style="align-items:flex-start">
+              <div class="file-ico blue">${icon('renew')}</div>
+              <div class="f-meta"><div class="f-name">${escapeHtml(clientName(r.client_id))}</div>
+                <div class="f-sub">Veículo atual: ${escapeHtml(curVeh(r.client_id))}</div>
+                <div class="f-sub">Solicitado em ${fmt.date(r.created_at)}</div></div>
+              <div class="row-actions" style="align-items:center">
+                <a class="btn btn-glass btn-sm" href="https://wa.me/${clientsMap[r.client_id]?.phone ? clientsMap[r.client_id].phone.replace(/\\D/g, '') : ''}" target="_blank" rel="noopener">${icon('whatsapp')} Contato</a>
+                <button class="btn btn-blue btn-sm" data-troca-done="${r.id}">${icon('check')} Resolver</button>
+              </div>
+            </div>`).join('')}
+        </div>` : ''}
         <div class="panel glass" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
           <div><h3>Motoristas cadastrados</h3><div class="body-sm">${clients.length} conta(s) · toque em um motorista para ver detalhes e gerenciar</div></div>
         </div>
@@ -690,6 +722,7 @@ export async function renderEmpresa(root, user, onLogout) {
 
     shell.content.querySelector('#novo-motorista').onclick = () => formMotorista(() => go('motoristas'));
     shell.content.querySelectorAll('[data-driver]').forEach((card) => card.onclick = () => driverDetail(card.dataset.driver));
+    shell.content.querySelectorAll('[data-troca-done]').forEach((b) => b.onclick = async () => { await api.updateRequest(b.dataset.trocaDone, 'fechado'); toast('Solicitação de troca resolvida.', 'ok'); go('motoristas'); });
   }
 
   /* detalhe + ações de um motorista */
@@ -1209,7 +1242,12 @@ export async function renderEmpresa(root, user, onLogout) {
         ...hoje.map((p) => ({ cls: 'due', ico: 'clock', title: `Vence hoje — ${clientName(p.client_id)}`, sub: `${fmt.money(p.amount)}`, goto: 'pagamentos' })),
         ...semana.map((p) => ({ cls: 'due', ico: 'calendar', title: `Vence em ${daysFromToday(p.due_date)} dia(s) — ${clientName(p.client_id)}`, sub: `${fmt.money(p.amount)} · ${fmt.date(p.due_date)}`, goto: 'pagamentos' })),
       ];
+      const latest = (currentKey === 'dashboard' && items.length) ? items[0] : null;
       shell.topbarActions.innerHTML = `
+        ${latest ? `<button class="notif-latest ${latest.cls}" data-goto="${latest.goto}" title="Ver notificação">
+          <span class="nl-ico">${icon(latest.ico)}</span>
+          <span class="nl-txt"><span class="nl-title">${escapeHtml(latest.title)}</span><span class="nl-sub">${escapeHtml(latest.sub)}</span></span>
+        </button>` : ''}
         <button class="bell-btn" id="bell-btn" aria-label="Notificações">${icon('bell')}${count ? `<span class="bell-badge">${count}</span>` : ''}</button>
         <div class="notif-dropdown" id="notif-dd">
           <div class="notif-head">${icon('bell')} Notificações ${count ? `<span class="badge badge-red" style="margin-left:auto">${count} nova(s)</span>` : ''}</div>
@@ -1224,6 +1262,8 @@ export async function renderEmpresa(root, user, onLogout) {
       const closeDD = () => { dd.classList.remove('show'); document.removeEventListener('click', closeDD); };
       btn.onclick = (e) => { e.stopPropagation(); const open = dd.classList.toggle('show'); if (open) setTimeout(() => document.addEventListener('click', closeDD), 0); else document.removeEventListener('click', closeDD); };
       dd.querySelectorAll('[data-goto]').forEach((it) => it.onclick = () => { closeDD(); go(it.dataset.goto); });
+      const nl = shell.topbarActions.querySelector('.notif-latest');
+      if (nl) nl.onclick = () => go(nl.dataset.goto);
     } catch (e) { /* silencioso */ }
   }
 

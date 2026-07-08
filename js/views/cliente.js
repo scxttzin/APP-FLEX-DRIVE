@@ -162,7 +162,8 @@ export async function renderCliente(root, user, onLogout) {
           <div class="pa-label">Valor a pagar</div>
           <div class="pa-val">${fmt.money(total)}</div>
           <div class="body-sm">Vencimento ${fmt.date(p.due_date)}${p.week_ref ? ' · Semana ' + p.week_ref : ''}</div>
-          ${lateFee > 0 ? `<div class="pix-late">${icon('alert')} ${fmt.money(p.amount)} + ${fmt.money(lateFee)} de juros por atraso (${daysLate} dia(s) × ${fmt.money(perDay)}/dia)</div>` : ''}
+          ${lateFee > 0 ? `<div class="pix-late">${icon('alert')} ${fmt.money(p.amount)} + ${fmt.money(lateFee)} de atraso acumulado</div>
+          <div class="pix-late-note">Devido seu pagamento estar em atraso, cada dia de atraso é ${fmt.money(perDay)}, acumulando num total de ${fmt.money(lateFee)} (${daysLate} dia(s)).</div>` : ''}
         </div>
         ${hasKey ? `
           <div class="pix-qr" id="pix-qr"><div class="spinner"></div></div>
@@ -304,6 +305,7 @@ export async function renderCliente(root, user, onLogout) {
     const { vehicle } = await loadAll();
     if (!vehicle) { shell.content.innerHTML = `<div class="panel glass"><div class="empty">${icon('car', 'empty-ico')}<p>Nenhum veículo vinculado à sua conta.</p></div></div>`; return; }
     const documents = await api.listDocuments({ vehicle_id: vehicle.id });
+    const trocaDisponivel = (await api.listVehicles({ status: 'disponivel' })).length > 0;
 
     shell.content.innerHTML = `
       <div class="fade-in">
@@ -325,14 +327,22 @@ export async function renderCliente(root, user, onLogout) {
             </div>
           </div>
 
-          <div class="panel glass">
-            <div class="panel-head"><span class="panel-ico">${icon('shield')}</span><h3>Documentação do carro</h3></div>
-            ${documents.length ? documents.map((d) => `
-              <div class="file-row">
-                <div class="file-ico blue">${icon('doc')}</div>
-                <div class="f-meta"><div class="f-name">${escapeHtml(d.title)}</div><div class="f-sub">${escapeHtml(d.type)}</div></div>
-                <button class="icon-btn" title="Abrir" data-open="${d.id}">${icon('download')}</button>
-              </div>`).join('') : `<div class="empty">${icon('info', 'empty-ico')}<p>Nenhum documento disponibilizado ainda.</p></div>`}
+          <div>
+            <div class="panel glass">
+              <div class="panel-head"><span class="panel-ico">${icon('shield')}</span><h3>Documentação do carro</h3></div>
+              ${documents.length ? documents.map((d) => `
+                <div class="file-row">
+                  <div class="file-ico blue">${icon('doc')}</div>
+                  <div class="f-meta"><div class="f-name">${escapeHtml(d.title)}</div><div class="f-sub">${escapeHtml(d.type)}</div></div>
+                  <button class="icon-btn" title="Abrir" data-open="${d.id}">${icon('download')}</button>
+                </div>`).join('') : `<div class="empty">${icon('info', 'empty-ico')}<p>Nenhum documento disponibilizado ainda.</p></div>`}
+            </div>
+
+            <div class="panel glass">
+              <div class="panel-head"><span class="panel-ico">${icon('renew')}</span><h3>Solicitar troca de veículo</h3></div>
+              <p class="body-sm" style="margin-bottom:1rem">Gostaria de alterar o seu veículo? Solicite agora a mudança, caso possamos fazer a troca retornamos o contato.</p>
+              <button class="btn ${trocaDisponivel ? 'btn-blue' : 'btn-glass'} btn-block" id="btn-troca" ${trocaDisponivel ? '' : 'disabled'}>${icon('renew')} ${trocaDisponivel ? 'Trocar Veículo' : 'Indisponível'}</button>
+            </div>
           </div>
         </div>
       </div>`;
@@ -341,6 +351,15 @@ export async function renderCliente(root, user, onLogout) {
       const rec = documents.find((x) => x.id === b.dataset.open);
       openFile(await api.fileUrl(rec), rec.file_name || 'documento.pdf');
     });
+    const btnTroca = shell.content.querySelector('#btn-troca');
+    if (btnTroca && trocaDisponivel) btnTroca.onclick = async () => {
+      btnTroca.disabled = true;
+      try {
+        await api.createRequest({ client_id: user.id, subject: 'Troca de veículo', message: `Solicitação de troca. Veículo atual: ${vehicle.brand} ${vehicle.model} · ${vehicle.plate}.` });
+        toast('Solicitação de troca enviada! A empresa vai retornar o contato. 🔄', 'ok');
+        btnTroca.innerHTML = `${icon('check')} Solicitação enviada`;
+      } catch (err) { toast('Erro: ' + err.message, 'err'); btnTroca.disabled = false; }
+    };
   }
 
   /* ════════════ MANUTENÇÃO (motorista) ════════════ */
@@ -486,6 +505,7 @@ export async function renderCliente(root, user, onLogout) {
               ${active.status === 'renovacao_solicitada'
                 ? `<button class="btn btn-ghost" disabled>${icon('clock')} Renovação solicitada</button>`
                 : `<button class="btn btn-blue" data-renew="${active.id}">${icon('renew')} Solicitar renovação</button>`}
+              <button class="btn btn-danger" data-encerrar>${icon('close')} Encerrar Contrato</button>
             </div>
           </div>
 
@@ -505,6 +525,15 @@ export async function renderCliente(root, user, onLogout) {
     shell.content.querySelectorAll('[data-open]').forEach((b) => b.onclick = async () => {
       const rec = contracts.find((x) => x.id === b.dataset.open);
       openFile(await api.fileUrl(rec), rec.file_name || 'contrato.pdf');
+    });
+    shell.content.querySelector('[data-encerrar]')?.addEventListener('click', () => {
+      const mm = modal({
+        title: 'Encerrar contrato', icon: 'alert',
+        body: `<p class="body-sm" style="font-size:.95rem">Tem certeza de que quer cancelar sua locação?</p>`,
+        footer: `<button class="btn btn-glass" data-nao>Não</button><a class="btn btn-danger" data-sim href="https://wa.me/${CONFIG.EMPRESA.whatsapp}?text=${encodeURIComponent('Olá! Gostaria de encerrar meu contrato de locação.')}" target="_blank" rel="noopener">Sim, encerrar</a>`,
+      });
+      mm.overlay.querySelector('[data-nao]').onclick = mm.close;
+      mm.overlay.querySelector('[data-sim]').addEventListener('click', () => mm.close());
     });
     shell.content.querySelector('[data-renew]')?.addEventListener('click', () => {
       const c = active;

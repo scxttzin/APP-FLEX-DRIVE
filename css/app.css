@@ -573,6 +573,23 @@ html { overflow-x: hidden; }
 .maint-shots .shot-img img { width: 100%; height: auto; display: block; }
 .maint-shots .shot-empty { font-size: 0.8rem; color: var(--gray-4); display: flex; align-items: center; gap: 6px; padding: 1rem; }
 
+/* Contato rápido: o item de e-mail é um <button> — reseta p/ alinhar com os <a> */
+button.quick-item { font: inherit; text-align: left; width: 100%; }
+
+/* Notificação mais recente ao lado do sino (só no Dashboard da empresa) */
+.notif-latest { display: inline-flex; align-items: center; gap: 0.6rem; max-width: 340px; padding: 0.4rem 0.9rem 0.4rem 0.45rem; border-radius: var(--radius-pill); border: 1px solid var(--gray-6); background: rgba(255,255,255,0.9); cursor: pointer; text-align: left; transition: all .15s var(--ease-smooth); }
+.notif-latest:hover { border-color: var(--blue); box-shadow: 0 4px 14px rgba(0,0,0,0.08); transform: translateY(-1px); }
+.notif-latest .nl-ico { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; color: #fff; background: var(--blue); }
+.notif-latest.late .nl-ico { background: var(--red); }
+.notif-latest.due .nl-ico { background: var(--amber); }
+.notif-latest.pay .nl-ico { background: var(--green); }
+.notif-latest .nl-ico svg { width: 16px; height: 16px; }
+.notif-latest .nl-txt { display: flex; flex-direction: column; min-width: 0; }
+.notif-latest .nl-title { font-size: 0.78rem; font-weight: 600; color: var(--gray-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+.notif-latest .nl-sub { font-size: 0.72rem; color: var(--gray-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+@media (max-width: 760px){ .notif-latest { display: none; } }
+
 /* juros por atraso no modal de pagamento Pix */
 .pix-late { margin-top: 0.5rem; display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 600; color: var(--amber); background: var(--amber-pale); padding: 0.35rem 0.7rem; border-radius: var(--radius-pill); }
 .pix-late svg { width: 15px; height: 15px; }
+.pix-late-note { margin-top: 0.4rem; font-size: 0.78rem; color: var(--gray-3); line-height: 1.5; }
