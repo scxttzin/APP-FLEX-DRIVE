@@ -172,13 +172,15 @@ const DemoBackend = {
     saveDB(db); return data;
   },
   async deleteMaintenance(id) { const db = loadDB(); db.maintenances = db.maintenances.filter((x) => x.id !== id); saveDB(db); },
-  async requestMaintenance({ vehicle_id, km, file, category, wear_type, description }) {
+  async requestMaintenance({ vehicle_id, km, file, file2, category, wear_type, description }) {
     const db = loadDB(); const id = uid('m'); const files = loadFiles();
-    let photo_path = null;
-    if (file) { photo_path = 'mphoto-' + id; files[photo_path] = await fileToDataURL(file); saveFiles(files); }
+    let photo_path = null, photo_path2 = null;
+    if (file) { photo_path = 'mphoto-' + id; files[photo_path] = await fileToDataURL(file); }
+    if (file2) { photo_path2 = 'mphoto2-' + id; files[photo_path2] = await fileToDataURL(file2); }
+    if (file || file2) saveFiles(files);
     const session = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
     const rec = {
-      id, vehicle_id, requested_by: session?.id || null, km: Number(km), photo_path, category, wear_type: wear_type || null,
+      id, vehicle_id, requested_by: session?.id || null, km: Number(km), photo_path, photo_path2, category, wear_type: wear_type || null,
       type: category === 'desgaste' ? (wear_type ? wear_type[0].toUpperCase() + wear_type.slice(1) : 'Desgaste') : 'Revisão completa',
       description: description || '', status: 'solicitada', cost: 0, scheduled_date: isoDate(new Date()), done_date: null,
     };
@@ -186,7 +188,7 @@ const DemoBackend = {
     const v = db.vehicles.find((x) => x.id === vehicle_id); if (v) v.km = Math.max(Number(v.km) || 0, Number(km));
     saveDB(db); return rec;
   },
-  async maintenancePhotoUrl(record) { return record.photo_path ? (loadFiles()[record.photo_path] || null) : null; },
+  async maintenancePhotoUrl(record, which = 'photo_path') { const p = record[which]; return p ? (loadFiles()[p] || null) : null; },
 
   async listContracts(filter = {}) {
     let c = loadDB().contracts;
@@ -234,6 +236,22 @@ const DemoBackend = {
     db.contact_requests.push(data); saveDB(db); return data;
   },
   async updateRequest(id, status) { const db = loadDB(); const r = db.contact_requests.find((x) => x.id === id); if (r) r.status = status; saveDB(db); },
+
+  async getPaymentSettings() {
+    const db = loadDB(); const p = CONFIG.EMPRESA.pix || {}; const s = (db.settings && db.settings.payment) || {};
+    return {
+      pix_key: s.pix_key ?? p.chave ?? '', pix_name: s.pix_name ?? p.nome ?? '', pix_city: s.pix_city ?? p.cidade ?? '',
+      late_fee_per_day: Number(s.late_fee_per_day ?? 0),
+    };
+  },
+  async savePaymentSettings(data) {
+    const db = loadDB(); db.settings = db.settings || {};
+    db.settings.payment = {
+      pix_key: (data.pix_key || '').trim(), pix_name: (data.pix_name || '').trim(), pix_city: (data.pix_city || '').trim(),
+      late_fee_per_day: Number(data.late_fee_per_day || 0),
+    };
+    saveDB(db); return db.settings.payment;
+  },
 
   async listPartners() { return loadDB().partners || []; },
   async savePartner(data) {
@@ -378,17 +396,26 @@ const SupabaseBackend = {
     const { id, ...ins } = data; return unwrap(await c.from('maintenances').insert(ins).select().single());
   },
   async deleteMaintenance(id) { const c = await sb(); unwrap(await c.from('maintenances').delete().eq('id', id)); },
-  async requestMaintenance({ vehicle_id, km, file, category, wear_type, description }) {
+  async requestMaintenance({ vehicle_id, km, file, file2, category, wear_type, description }) {
     const c = await sb();
     const { data: { session } } = await c.auth.getSession();
-    let path = null;
-    if (file) { path = `${session.user.id}/${Date.now()}-${file.name}`; unwrap(await c.storage.from('maintenance').upload(path, file)); }
-    return unwrap(await c.rpc('request_maintenance', { p_vehicle: vehicle_id, p_km: Number(km), p_photo: path, p_category: category, p_wear: wear_type || null, p_desc: description || '' }));
+    const upload = async (fl, tag) => {
+      if (!fl) return null;
+      const p = `${session.user.id}/${Date.now()}-${tag}-${fl.name}`;
+      unwrap(await c.storage.from('maintenance').upload(p, fl));
+      return p;
+    };
+    const path = await upload(file, 'a');
+    const path2 = await upload(file2, 'b');
+    const rec = unwrap(await c.rpc('request_maintenance', { p_vehicle: vehicle_id, p_km: Number(km), p_photo: path, p_category: category, p_wear: wear_type || null, p_desc: description || '' }));
+    // 2ª foto (revisão completa): grava photo_path2 — requer a coluna do migration_v10.sql
+    if (path2 && rec?.id) { try { await c.from('maintenances').update({ photo_path2: path2 }).eq('id', rec.id); rec.photo_path2 = path2; } catch (e) { /* coluna ausente — ignore */ } }
+    return rec;
   },
-  async maintenancePhotoUrl(record) {
-    if (!record.photo_path) return null;
+  async maintenancePhotoUrl(record, which = 'photo_path') {
+    const p = record[which]; if (!p) return null;
     const c = await sb();
-    const { data } = await c.storage.from('maintenance').createSignedUrl(record.photo_path, 3600);
+    const { data } = await c.storage.from('maintenance').createSignedUrl(p, 3600);
     return data?.signedUrl || null;
   },
 
@@ -434,6 +461,20 @@ const SupabaseBackend = {
   },
   async createRequest(data) { const c = await sb(); return unwrap(await c.from('contact_requests').insert({ ...data, status: 'aberto' }).select().single()); },
   async updateRequest(id, status) { const c = await sb(); unwrap(await c.from('contact_requests').update({ status }).eq('id', id)); },
+
+  async getPaymentSettings() {
+    const c = await sb(); const p = CONFIG.EMPRESA.pix || {}; let s = {};
+    try { const { data } = await c.from('app_settings').select('*').eq('id', 'payment').maybeSingle(); s = data || {}; } catch (e) { s = {}; }
+    return {
+      pix_key: s.pix_key ?? p.chave ?? '', pix_name: s.pix_name ?? p.nome ?? '', pix_city: s.pix_city ?? p.cidade ?? '',
+      late_fee_per_day: Number(s.late_fee_per_day ?? 0),
+    };
+  },
+  async savePaymentSettings(data) {
+    const c = await sb();
+    const row = { id: 'payment', pix_key: (data.pix_key || '').trim(), pix_name: (data.pix_name || '').trim(), pix_city: (data.pix_city || '').trim(), late_fee_per_day: Number(data.late_fee_per_day || 0), updated_at: new Date().toISOString() };
+    return unwrap(await c.from('app_settings').upsert(row).select().single());
+  },
 
   async listPartners() { const c = await sb(); return unwrap(await c.from('partners').select('*').order('name')); },
   async savePartner(data) {

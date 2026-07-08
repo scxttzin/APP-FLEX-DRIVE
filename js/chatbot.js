@@ -97,22 +97,36 @@ const INTENCOES = [
   },
   {
     id: 'atraso',
-    kw: ['atraso', 'atrasado', 'atrasei', 'juros', 'negociar', 'parcelar', 'divida', 'dívida'],
+    kw: ['atraso', 'atrasado', 'atrasei', 'posso atrasar', 'atrasar', 'juros', 'negociar', 'parcelar', 'divida', 'dívida'],
     resp: (ctx) => ({
-      text: `${ctx.pagamentosAtrasados ? 'Vi que há pagamento em atraso. ' : ''}Para regularizar, use a aba "Pagamentos". Para combinar prazo ou negociar valores, vou te encaminhar para nossa equipe, tudo bem?`,
-      escalate: true,
+      text: `${ctx.pagamentosAtrasados ? 'Vi que há pagamento em atraso. ' : ''}1 dia de atraso às vezes é considerável, mas além disso leva-se à revisão contratual — então o ideal é manter os pagamentos em dia (aba "Pagamentos"). Lembrando que o atraso também gera juros por dia. Para negociar prazo ou valores, posso te encaminhar para a equipe.`,
+      chips: ['Falar com atendente'],
     }),
   },
   {
     id: 'contrato',
     kw: ['contrato', 'assinado', 'vigencia', 'vigência', 'renovar', 'renovacao', 'renovação', 'validade'],
     resp: (ctx) => ({
-      text: `Seu contrato assinado fica na aba "Contrato" — dá para abrir e baixar por lá.${ctx.contrato ? ` Situação atual: ${ctx.contrato.situacao}${ctx.contrato.vigencia ? ` (${ctx.contrato.vigencia})` : ''}.` : ''} A renovação também pode ser solicitada nessa aba. 📄`,
+      text: `Seu contrato assinado fica na aba "Seu contrato" — dá para abrir e baixar por lá.${ctx.contrato ? ` Situação atual: ${ctx.contrato.situacao}${ctx.contrato.vigencia ? ` (${ctx.contrato.vigencia})` : ''}.` : ''} A renovação também pode ser solicitada nessa aba. 📄`,
+    }),
+  },
+  {
+    id: 'manutencao_local',
+    kw: ['lugar de minha preferencia', 'lugar de minha preferência', 'local de minha preferencia', 'minha oficina', 'oficina propria', 'oficina própria', 'oficina de confianca', 'oficina de confiança', 'mecanico de confianca', 'onde eu quiser', 'outro lugar', 'outro local', 'levar em outro', 'local proprio', 'consertar por conta'],
+    resp: () => ({
+      text: 'Não. Reparos e manutenções são feitos apenas em locais escolhidos e notificados pela empresa. Levar o veículo para qualquer outro local pode gerar multa e rescisão contratual imediata. Quando precisar, solicite pela aba "Manutenção" que a empresa indica o local. 🔧',
+    }),
+  },
+  {
+    id: 'compartilhar',
+    kw: ['compartilhar', 'compartilho', 'compartilhamento', 'emprestar', 'emprestar o carro', 'outra pessoa dirigir', 'alguem dirigir', 'alguém dirigir', 'dividir o carro', 'sublocar', 'repassar o carro', 'outro motorista dirigir'],
+    resp: () => ({
+      text: 'Se não foi previamente acordado em contrato com a empresa, é totalmente proibido compartilhar o veículo. O carro é de sua responsabilidade — repassar a terceiros pode gerar multa e rescisão contratual. Se precisar dessa possibilidade, fale com a equipe para avaliar. 🚫',
     }),
   },
   {
     id: 'manutencao',
-    kw: ['manutencao', 'manutenção', 'oficina', 'revisao', 'revisão', 'quebrou', 'quebrado', 'defeito', 'problema', 'nao liga', 'não liga', 'nao pega', 'não pega', 'motor', 'barulho', 'pneu', 'freio', 'bateria', 'farol', 'luz do painel', 'vazamento', 'superaquec', 'oleo', 'óleo', 'consertar', 'conserto'],
+    kw: ['manutencao', 'manutenção', 'revisao', 'revisão', 'quebrou', 'quebrado', 'defeito', 'problema', 'nao liga', 'não liga', 'nao pega', 'não pega', 'motor', 'barulho', 'pneu', 'freio', 'bateria', 'farol', 'luz do painel', 'vazamento', 'superaquec', 'oleo', 'óleo', 'consertar', 'conserto'],
     resp: () => ({
       text: 'Para manutenção, use a aba "Manutenção" do app: você solicita o serviço e a gente cuida do agendamento. Se for uma emergência (carro parado), me avise que já te passo para a equipe. 🔧',
       chips: ['É urgente', 'Como solicito?'],
@@ -120,16 +134,16 @@ const INTENCOES = [
   },
   {
     id: 'veiculo',
-    kw: ['veiculo', 'veículo', 'carro', 'meu carro', 'placa', 'modelo', 'documento do carro', 'crlv', 'licenciamento', 'dados do carro'],
+    kw: ['veiculo', 'veículo', 'carro', 'placa', 'modelo', 'documento do carro', 'crlv', 'licenciamento', 'dados do carro'],
     resp: (ctx) => ({
-      text: `Os dados do seu veículo e os documentos (como o CRLV) ficam na aba "Meu Veículo".${ctx.veiculo ? ` Seu carro: ${ctx.veiculo.modelo}${ctx.veiculo.placa ? `, placa ${ctx.veiculo.placa}` : ''}.` : ''} 🚗`,
+      text: `Os dados do seu veículo e os documentos (como o CRLV) ficam na aba "Veículo".${ctx.veiculo ? ` Seu carro: ${ctx.veiculo.modelo}${ctx.veiculo.placa ? `, placa ${ctx.veiculo.placa}` : ''}.` : ''} 🚗`,
     }),
   },
   {
     id: 'troca_veiculo',
-    kw: ['trocar carro', 'troca de veiculo', 'trocar veiculo', 'outro carro', 'mudar de carro'],
+    kw: ['trocar carro', 'troca de veiculo', 'troca de veículo', 'trocar veiculo', 'trocar de veiculo', 'outro carro', 'mudar de carro', 'solicitar troca'],
     resp: () => ({
-      text: 'A troca de veículo pode ser avaliada pela nossa equipe. Quer que eu já te encaminhe para tratarmos os detalhes?',
+      text: 'Para trocar de veículo, você precisa entrar em contato com o nosso time para verificar a disponibilidade. Havendo disponibilidade, possivelmente sim! Quer que eu te encaminhe para verificar?',
       escalate: true,
     }),
   },
@@ -137,7 +151,7 @@ const INTENCOES = [
     id: 'documentos',
     kw: ['documento', 'documentos', 'segunda via', 'papel', 'anexo'],
     resp: () => ({
-      text: 'Os documentos do seu carro ficam na aba "Meu Veículo" e o contrato na aba "Contrato". Se precisar de algum documento que não está lá, me diga qual que eu verifico com a equipe. 📎',
+      text: 'Os documentos do seu carro ficam na aba "Veículo" e o contrato na aba "Seu contrato". Se precisar de algum documento que não está lá, me diga qual que eu verifico com a equipe. 📎',
     }),
   },
   {
@@ -217,7 +231,12 @@ function respostaLocal(text, ctx) {
   const t = norm(text);
   let melhor = null; let score = 0;
   for (const it of INTENCOES) {
-    const s = it.kw.reduce((acc, k) => { const nk = norm(k); return acc + (t.includes(nk) ? nk.length : 0); }, 0);
+    const seen = new Set();
+    const s = it.kw.reduce((acc, k) => {
+      const nk = norm(k);
+      if (seen.has(nk) || !t.includes(nk)) return acc;   // não conta variantes acentuadas/duplicadas duas vezes
+      seen.add(nk); return acc + nk.length;
+    }, 0);
     if (s > score) { score = s; melhor = it; }
   }
   if (melhor && score > 0) {

@@ -18,9 +18,9 @@ export async function renderCliente(root, user, onLogout) {
   const nav = [
     { key: 'inicio',     label: 'Início',          icon: 'dashboard' },
     { key: 'pagamentos', label: 'Pagamentos',      icon: 'calendar' },
-    { key: 'veiculo',    label: 'Meu Veículo',     icon: 'car' },
+    { key: 'veiculo',    label: 'Veículo',         icon: 'car' },
     { key: 'manutencao', label: 'Manutenção',      icon: 'wrench' },
-    { key: 'contrato',   label: 'Contrato',        icon: 'doc' },
+    { key: 'contrato',   label: 'Seu contrato',    icon: 'doc' },
     { key: 'contato',    label: 'Falar com a empresa', icon: 'phone' },
   ];
   const shell = buildShell({ root, user, roleLabel: 'Motorista', nav, onNav: go, onLogout });
@@ -31,6 +31,7 @@ export async function renderCliente(root, user, onLogout) {
   async function go(key) {
     shell.setActive(key);
     refreshNotifications();
+    document.body.classList.toggle('dash-active', key === 'inicio');  // fundo azul só na aba Início (mesmo estilo do painel)
     shell.content.innerHTML = loading();
     try {
       if (key === 'inicio') await pageInicio();
@@ -96,10 +97,16 @@ export async function renderCliente(root, user, onLogout) {
             </div>` : `<div class="panel glass"><div class="empty">${icon('car', 'empty-ico')}<p>Nenhum veículo vinculado ainda.</p></div></div>`}
 
             <div class="panel glass">
-              <div class="panel-head"><span class="panel-ico">${icon('phone')}</span><h3>Precisa de ajuda?</h3></div>
-              <p class="body-sm" style="margin-bottom:1rem">Fale direto com a equipe Flex Drive.</p>
-              <a class="btn btn-blue btn-block" href="https://wa.me/${CONFIG.EMPRESA.whatsapp}" target="_blank" rel="noopener">${icon('whatsapp')} WhatsApp</a>
-              <button class="btn btn-glass btn-block" id="ir-contato" style="margin-top:.6rem">${icon('send')} Solicitar contato</button>
+              <div class="panel-head"><span class="panel-ico">${icon('gauge')}</span><h3>Acesso rápido</h3></div>
+              <button class="btn btn-blue btn-block" id="qa-manut">${icon('wrench')} Solicitar manutenção</button>
+              <button class="btn btn-glass btn-block" id="qa-pag" style="margin-top:.6rem">${icon('payments')} Ver histórico de pagamentos</button>
+            </div>
+
+            <div class="panel glass">
+              <div class="panel-head"><span class="panel-ico">${icon('bot')}</span><h3>Precisa de ajuda?</h3></div>
+              <p class="body-sm" style="margin-bottom:1rem">Converse com o <strong>Flex App</strong>, nosso assistente virtual — ele tira suas dúvidas na hora.</p>
+              <button class="btn btn-blue btn-block" id="ir-chat">${icon('chat')} Abrir chat do Flex App</button>
+              <a class="btn btn-glass btn-block" href="https://wa.me/${CONFIG.EMPRESA.whatsapp}" target="_blank" rel="noopener" style="margin-top:.6rem">${icon('whatsapp')} WhatsApp</a>
             </div>
           </div>
         </div>
@@ -107,7 +114,9 @@ export async function renderCliente(root, user, onLogout) {
 
     mountCalendar(shell.content.querySelector('#cal-mount'), payments);
     shell.content.querySelector('#ver-veh')?.addEventListener('click', () => go('veiculo'));
-    shell.content.querySelector('#ir-contato')?.addEventListener('click', () => go('contato'));
+    shell.content.querySelector('#qa-manut')?.addEventListener('click', () => go('manutencao'));
+    shell.content.querySelector('#qa-pag')?.addEventListener('click', () => go('pagamentos'));
+    shell.content.querySelector('#ir-chat')?.addEventListener('click', () => go('contato'));
     shell.content.querySelectorAll('[data-pay]').forEach((b) => b.onclick = () => openPayModal(payments.find((p) => p.id === b.dataset.pay)));
   }
 
@@ -139,16 +148,21 @@ export async function renderCliente(root, user, onLogout) {
   /* ── Modal de pagamento Pix + envio de comprovante ── */
   async function openPayModal(p) {
     if (!p) return;
-    const pix = CONFIG.EMPRESA.pix || {};
-    const payload = pixPayload({ key: pix.chave, name: pix.nome, city: pix.cidade, amount: p.amount, txid: 'FLEX' + (p.week_ref || '') });
+    const cfg = await api.getPaymentSettings();
+    const daysLate = paymentStatus(p) === 'atrasado' ? Math.max(0, -daysFromToday(p.due_date)) : 0;
+    const perDay = Number(cfg.late_fee_per_day || 0);
+    const lateFee = daysLate * perDay;
+    const total = Number(p.amount) + lateFee;
+    const payload = pixPayload({ key: cfg.pix_key, name: cfg.pix_name, city: cfg.pix_city, amount: total, txid: 'FLEX' + (p.week_ref || '') });
     const hasKey = !!payload;
     const m = modal({
       title: 'Pagar com Pix', icon: 'pix',
       body: `
         <div class="pix-amount">
           <div class="pa-label">Valor a pagar</div>
-          <div class="pa-val">${fmt.money(p.amount)}</div>
+          <div class="pa-val">${fmt.money(total)}</div>
           <div class="body-sm">Vencimento ${fmt.date(p.due_date)}${p.week_ref ? ' · Semana ' + p.week_ref : ''}</div>
+          ${lateFee > 0 ? `<div class="pix-late">${icon('alert')} ${fmt.money(p.amount)} + ${fmt.money(lateFee)} de juros por atraso (${daysLate} dia(s) × ${fmt.money(perDay)}/dia)</div>` : ''}
         </div>
         ${hasKey ? `
           <div class="pix-qr" id="pix-qr"><div class="spinner"></div></div>
@@ -158,7 +172,7 @@ export async function renderCliente(root, user, onLogout) {
           </div>
           <div class="pix-steps">
             <div class="pix-step"><span class="ps-num">1</span><span>Copie o código ou escaneie o QR no app do seu banco.</span></div>
-            <div class="pix-step"><span class="ps-num">2</span><span>Confirme o pagamento de <strong>${fmt.money(p.amount)}</strong>.</span></div>
+            <div class="pix-step"><span class="ps-num">2</span><span>Confirme o pagamento de <strong>${fmt.money(total)}</strong>.</span></div>
             <div class="pix-step"><span class="ps-num">3</span><span>Anexe o comprovante abaixo e envie.</span></div>
           </div>
           <div class="field" style="margin-bottom:0">
@@ -196,7 +210,7 @@ export async function renderCliente(root, user, onLogout) {
         await api.submitReceipt(p, chosen);
         m.close();
         toast('Comprovante enviado! A empresa vai confirmar. ✅', 'ok');
-        whatsappNotice(`Olá! Acabei de pagar ${fmt.money(p.amount)} (venc. ${fmt.date(p.due_date)}) pelo app e enviei o comprovante.`);
+        whatsappNotice(`Olá! Acabei de pagar ${fmt.money(total)} (venc. ${fmt.date(p.due_date)}) pelo app e enviei o comprovante.`);
         go('inicio');
       } catch (err) { toast('Erro: ' + err.message, 'err'); sendBtn.disabled = false; sendBtn.innerHTML = `${icon('check')} Enviar comprovante`; }
     };
@@ -225,7 +239,7 @@ export async function renderCliente(root, user, onLogout) {
           ${np ? `<div class="kpi glass"><div class="kpi-top"><span class="kpi-label">Próximo vencimento</span><span class="kpi-ico">${icon('clock')}</span></div><div class="kpi-val" style="font-size:1.4rem">${fmt.date(np.due_date)}</div><div class="kpi-delta">${fmt.money(np.amount)}</div></div>` : ''}
           <div class="kpi glass"><div class="kpi-top"><span class="kpi-label">Pagamentos efetuados</span><span class="kpi-ico">${icon('check')}</span></div><div class="kpi-val">${pagosCount}</div><div class="kpi-delta up">pagamentos concluídos</div></div>
         </div>
-        <div class="grid-cols grid-2-3">
+        <div class="grid-cols grid-3-2">
           <div class="panel glass">
             <div class="panel-head"><span class="panel-ico">${icon('calendar')}</span><h3>Calendário</h3></div>
             <div id="cal-mount"></div>
@@ -286,7 +300,7 @@ export async function renderCliente(root, user, onLogout) {
 
   /* ════════════ MEU VEÍCULO ════════════ */
   async function pageVeiculo() {
-    shell.setTitle('Meu Veículo', 'Dados e documentação');
+    shell.setTitle('Veículo', 'Dados e documentação');
     const { vehicle } = await loadAll();
     if (!vehicle) { shell.content.innerHTML = `<div class="panel glass"><div class="empty">${icon('car', 'empty-ico')}<p>Nenhum veículo vinculado à sua conta.</p></div></div>`; return; }
     const documents = await api.listDocuments({ vehicle_id: vehicle.id });
@@ -343,7 +357,7 @@ export async function renderCliente(root, user, onLogout) {
         <div class="grid-cols grid-2-3">
           <div class="panel glass">
             <div class="panel-head"><span class="panel-ico">${icon('wrench')}</span><h3>Solicitar manutenção</h3></div>
-            <p class="body-sm" style="margin-bottom:1.1rem">Informe a quilometragem atual e envie uma foto do painel. A empresa recebe o pedido na hora.</p>
+            <p class="body-sm" style="margin-bottom:1.1rem">Escolha o tipo de solicitação abaixo e anexe as fotos pedidas. A empresa recebe o pedido na hora.</p>
             <button class="btn btn-blue btn-block" id="req-completa">${icon('wrench')} Manutenção completa</button>
             <button class="btn btn-ghost btn-block" id="req-desgaste" style="margin-top:.7rem">${icon('alert')} Relatar desgaste</button>
             <div class="info-list" style="margin-top:1.3rem">
@@ -380,6 +394,14 @@ export async function renderCliente(root, user, onLogout) {
 
   function openMaintReq(category, vehicle, after) {
     const isDesg = category === 'desgaste';
+    // Desgaste → 1 foto (do desgaste). Revisão completa → 2 fotos (veículo + painel).
+    const uploaders = isDesg
+      ? [{ id: 'wear', label: 'Foto do desgaste' }]
+      : [{ id: 'vehicle', label: 'Foto do veículo' }, { id: 'dash', label: 'Foto do painel (quilometragem)' }];
+    const upHtml = (u) => `
+      <div class="field"><label>${u.label}</label>
+        <div class="upload-mini" data-drop="${u.id}">${icon('camera')} Toque para tirar / enviar a foto</div>
+        <input type="file" data-file="${u.id}" accept="image/*" capture="environment" hidden></div>`;
     const m = modal({
       title: isDesg ? 'Relatar desgaste' : 'Manutenção completa', icon: 'wrench',
       body: `
@@ -391,18 +413,25 @@ export async function renderCliente(root, user, onLogout) {
               <option value="outros">Outros</option>
             </select></div>` : ''}
           <div class="field"><label>Quilometragem atual (km)</label><input class="input" type="number" name="km" placeholder="Ex.: 31500" required></div>
-          <div class="field"><label>Foto do painel (quilometragem)</label>
-            <div class="upload-mini" id="km-drop">${icon('camera')} Toque para tirar / enviar a foto</div>
-            <input type="file" id="km-file" accept="image/*" capture="environment" hidden></div>
+          ${uploaders.map(upHtml).join('')}
           <div class="field" style="margin-bottom:0"><label id="desc-label">Observação (opcional)</label><textarea class="textarea" name="description" placeholder="Descreva o problema, se houver"></textarea></div>
         </form>`,
       footer: `<button class="btn btn-glass" data-cancel>Cancelar</button><button class="btn btn-blue" data-save disabled>${icon('send')} Enviar solicitação</button>`,
     });
-    let photo = null;
+    const photos = {};
     const f = m.overlay.querySelector('#f-maint');
-    const drop = m.overlay.querySelector('#km-drop');
-    const fin = m.overlay.querySelector('#km-file');
     const send = m.overlay.querySelector('[data-save]');
+    const refreshSend = () => { send.disabled = !uploaders.every((u) => photos[u.id]); };
+    uploaders.forEach((u) => {
+      const drop = m.overlay.querySelector(`[data-drop="${u.id}"]`);
+      const fin = m.overlay.querySelector(`[data-file="${u.id}"]`);
+      const set = (file) => { photos[u.id] = file; drop.classList.add('has-file'); drop.innerHTML = `${icon('check')} ${escapeHtml(file.name)}`; refreshSend(); };
+      drop.onclick = () => fin.click();
+      fin.onchange = () => { if (fin.files[0]) set(fin.files[0]); };
+      ['dragover', 'dragenter'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('drag'); }));
+      ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('drag'); }));
+      drop.addEventListener('drop', (e) => { if (e.dataTransfer.files[0]) set(e.dataTransfer.files[0]); });
+    });
     // "Outros" → o campo vira "Descrição" e passa a ser obrigatório
     const wearSel = m.overlay.querySelector('[name="wear_type"]');
     const descLabel = m.overlay.querySelector('#desc-label');
@@ -414,20 +443,17 @@ export async function renderCliente(root, user, onLogout) {
       descField.placeholder = outros ? 'Descreva o problema (obrigatório)' : 'Descreva o problema, se houver';
     };
     if (wearSel) { wearSel.onchange = syncDesc; syncDesc(); }
-    const setPhoto = (file) => { photo = file; drop.classList.add('has-file'); drop.innerHTML = `${icon('check')} ${escapeHtml(file.name)}`; send.disabled = false; };
-    drop.onclick = () => fin.click();
-    fin.onchange = () => { if (fin.files[0]) setPhoto(fin.files[0]); };
-    ['dragover', 'dragenter'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('drag'); }));
-    ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('drag'); }));
-    drop.addEventListener('drop', (e) => { if (e.dataTransfer.files[0]) setPhoto(e.dataTransfer.files[0]); });
     m.overlay.querySelector('[data-cancel]').onclick = m.close;
     send.onclick = async () => {
       if (!f.reportValidity()) return;
-      if (!photo) { toast('Anexe a foto do painel.', 'err'); return; }
+      if (!uploaders.every((u) => photos[u.id])) { toast('Anexe todas as fotos solicitadas.', 'err'); return; }
       const d = Object.fromEntries(new FormData(f));
       send.disabled = true; send.innerHTML = '<span class="spinner" style="width:16px;height:16px"></span> Enviando...';
       try {
-        await api.requestMaintenance({ vehicle_id: vehicle.id, km: d.km, file: photo, category, wear_type: isDesg ? d.wear_type : null, description: d.description });
+        // desgaste: file = foto do desgaste. completa: file = painel, file2 = foto do veículo.
+        const file = isDesg ? photos.wear : photos.dash;
+        const file2 = isDesg ? null : photos.vehicle;
+        await api.requestMaintenance({ vehicle_id: vehicle.id, km: d.km, file, file2, category, wear_type: isDesg ? d.wear_type : null, description: d.description });
         m.close(); toast('Solicitação enviada à empresa! 🔧', 'ok'); after && after();
       } catch (err) { toast('Erro: ' + err.message, 'err'); send.disabled = false; send.innerHTML = `${icon('send')} Enviar solicitação`; }
     };
@@ -435,7 +461,7 @@ export async function renderCliente(root, user, onLogout) {
 
   /* ════════════ CONTRATO ════════════ */
   async function pageContrato() {
-    shell.setTitle('Contrato', 'Vigência, documento e renovação');
+    shell.setTitle('Seu contrato', 'Vigência, documento e renovação');
     const contracts = await api.listContracts({ client_id: user.id });
     if (!contracts.length) { shell.content.innerHTML = `<div class="panel glass" style="max-width:640px"><div class="empty">${icon('info', 'empty-ico')}<p>Nenhum contrato disponível ainda.<br>Assim que a empresa enviar, ele aparece aqui.</p></div></div>`; return; }
 
@@ -530,12 +556,12 @@ export async function renderCliente(root, user, onLogout) {
             <div class="quick-contact">
               <a class="quick-item wa" href="https://wa.me/${CONFIG.EMPRESA.whatsapp}" target="_blank" rel="noopener">
                 <span class="qi-ico">${icon('whatsapp')}</span>
-                <span class="qi-txt"><b>WhatsApp</b><small>Atendimento comercial</small></span>
+                <span class="qi-txt"><b>WhatsApp</b><small>Atendimento 24hrs</small></span>
               </a>
-              <a class="quick-item mail" href="mailto:${escapeHtml(CONFIG.EMPRESA.email)}">
+              <button type="button" class="quick-item mail" id="qc-mail">
                 <span class="qi-ico">${icon('mail')}</span>
-                <span class="qi-txt"><b>E-mail comercial</b><small>${escapeHtml(CONFIG.EMPRESA.email)}</small></span>
-              </a>
+                <span class="qi-txt"><b>E-mail comercial</b><small id="qc-mail-sub">Atendimento Segunda a sexta-feira 10hrs até 17hrs</small></span>
+              </button>
               ${ig ? `<a class="quick-item ig" href="${ig}" target="_blank" rel="noopener">
                 <span class="qi-ico">${icon('instagram')}</span>
                 <span class="qi-txt"><b>Instagram</b><small>Novidades e bastidores</small></span>
@@ -544,6 +570,21 @@ export async function renderCliente(root, user, onLogout) {
           </div>
         </div>
       </div>`;
+
+    // Contato rápido — E-mail revela o endereço ao pressionar (2º clique abre o e-mail)
+    const mailBtn = shell.content.querySelector('#qc-mail');
+    if (mailBtn) {
+      let mailRevealed = false;
+      mailBtn.addEventListener('click', () => {
+        const sub = mailBtn.querySelector('#qc-mail-sub');
+        if (!mailRevealed) {
+          mailRevealed = true;
+          sub.innerHTML = `<a href="mailto:${escapeHtml(CONFIG.EMPRESA.email)}" style="color:var(--blue);font-weight:600" onclick="event.stopPropagation()">${escapeHtml(CONFIG.EMPRESA.email)}</a>`;
+        } else {
+          window.location.href = 'mailto:' + CONFIG.EMPRESA.email;
+        }
+      });
+    }
 
     const scroll = shell.content.querySelector('#chat-scroll');
     const form = shell.content.querySelector('#chat-form');

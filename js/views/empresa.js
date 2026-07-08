@@ -98,7 +98,7 @@ export async function renderEmpresa(root, user, onLogout) {
                     <td class="nowrap">${fmt.date(p.due_date)}</td>
                     <td class="cell-strong mono nowrap">${fmt.money(p.amount)}</td>
                     <td>${badge(paymentStatus(p))}</td>
-                    <td class="row-actions"><button class="btn btn-blue btn-sm" data-pay="${p.id}">${icon('check')} Receber</button></td>
+                    <td class="row-actions"><button class="btn btn-green btn-sm" data-pay="${p.id}">${icon('check')} Efetuado</button></td>
                   </tr>`).join('')}
               </tbody>
             </table></div>` : emptyBox('Nenhum recebimento pendente. Tudo em dia! 🎉')}
@@ -137,6 +137,7 @@ export async function renderEmpresa(root, user, onLogout) {
     shell.setTitle('Recebimentos', 'Pagamentos dos motoristas');
     await refreshMaps();
     const payments = await api.listPayments();
+    const cfg = await api.getPaymentSettings();
 
     const pagos = payments.filter((p) => paymentStatus(p) === 'pago').length;
     const pend = payments.filter((p) => paymentStatus(p) === 'pendente').length;
@@ -151,6 +152,19 @@ export async function renderEmpresa(root, user, onLogout) {
           ${kpi('eye', 'Em análise', `${analise.length}`, 'comprovantes a confirmar')}
           ${kpi('clock', 'Pendentes', `${pend}`, 'aguardando')}
           ${kpi('alert', 'Atrasados', `${atras}`, 'requer atenção')}
+        </div>
+        <div class="panel glass">
+          <div class="panel-head"><span class="panel-ico">${icon('pix')}</span><h3>Configuração de pagamento</h3></div>
+          <p class="body-sm" style="margin-bottom:1rem">Cadastre a chave Pix que os motoristas usam para pagar e defina o juros por dia de atraso. Quando o pagamento está vencido, o Pix gerado para o motorista já vem com o juros embutido.</p>
+          <form id="f-pgto-cfg">
+            <div class="form-grid">
+              <div class="field full"><label>Chave Pix</label><input class="input" name="pix_key" value="${escapeHtml(cfg.pix_key)}" placeholder="CPF, e-mail, telefone ou chave aleatória"></div>
+              <div class="field"><label>Nome do recebedor (máx. 25, sem acentos)</label><input class="input" name="pix_name" value="${escapeHtml(cfg.pix_name)}" maxlength="25" placeholder="Flex Drive Locadora"></div>
+              <div class="field"><label>Cidade (máx. 15, sem acentos)</label><input class="input" name="pix_city" value="${escapeHtml(cfg.pix_city)}" maxlength="15" placeholder="Brasilia"></div>
+              <div class="field"><label>Juros por dia de atraso (R$)</label><input class="input" type="number" step="0.01" min="0" name="late_fee_per_day" value="${cfg.late_fee_per_day}" placeholder="0,00"></div>
+            </div>
+            <button class="btn btn-blue" type="submit">${icon('check')} Salvar configuração</button>
+          </form>
         </div>
         <div class="panel glass">
           <div class="panel-head"><span class="panel-ico">${icon('payments')}</span><h3>Todos os recebimentos</h3>
@@ -179,6 +193,15 @@ export async function renderEmpresa(root, user, onLogout) {
         </div>
       </div>`;
 
+    const cfgForm = shell.content.querySelector('#f-pgto-cfg');
+    cfgForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = cfgForm.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      try { await api.savePaymentSettings(Object.fromEntries(new FormData(cfgForm))); toast('Configuração de pagamento salva! 💾', 'ok'); }
+      catch (err) { toast('Erro ao salvar: ' + err.message, 'err'); }
+      finally { btn.disabled = false; }
+    });
     shell.content.querySelector('#novo-pag').onclick = () => formPagamento(null, () => go('pagamentos'));
     shell.content.querySelector('#novo-plano').onclick = () => formPlano(() => go('pagamentos'));
     shell.content.querySelectorAll('[data-pay]').forEach((b) => b.onclick = () => receberPagamento(b.dataset.pay, () => go('pagamentos')));
@@ -298,7 +321,7 @@ export async function renderEmpresa(root, user, onLogout) {
                 <div class="f-sub" style="white-space:normal">${escapeHtml(clientName(m.requested_by))} · ${m.km ? fmt.km(m.km) : 'km não informado'} · ${fmt.date(m.scheduled_date)}${m.description ? ' · ' + escapeHtml(m.description) : ''}</div>
               </div>
               <div class="row-actions" style="align-items:center">
-                ${m.photo_path ? `<button class="icon-btn" title="Ver foto do painel" data-photo="${m.id}">${icon('camera')}</button>` : ''}
+                <button class="icon-btn" title="Ver solicitação" data-view="${m.id}">${icon('eye')}</button>
                 <button class="btn btn-blue btn-sm" data-accept="${m.id}">${icon('check')} Agendar</button>
                 <button class="icon-btn danger" title="Recusar" data-del="${m.id}">${icon('trash')}</button>
               </div>
@@ -332,7 +355,7 @@ export async function renderEmpresa(root, user, onLogout) {
 
     shell.content.querySelector('#editar-manut').onclick = () => editMaintenancePicker(outras, () => go('manutencoes'));
     shell.content.querySelectorAll('[data-accept]').forEach((b) => b.onclick = () => scheduleMaintenance(maints.find((m) => m.id === b.dataset.accept), () => go('manutencoes')));
-    shell.content.querySelectorAll('[data-photo]').forEach((b) => b.onclick = async () => { const m = maints.find((x) => x.id === b.dataset.photo); openFile(await api.maintenancePhotoUrl(m), 'painel-km.jpg'); });
+    shell.content.querySelectorAll('[data-view]').forEach((b) => b.onclick = () => viewMaintRequest(maints.find((m) => m.id === b.dataset.view)));
     shell.content.querySelectorAll('[data-edit]').forEach((b) => b.onclick = () => formManutencao(maints.find((m) => m.id === b.dataset.edit), () => go('manutencoes')));
     shell.content.querySelectorAll('[data-done]').forEach((b) => b.onclick = async () => { const m = maints.find((x) => x.id === b.dataset.done); await api.saveMaintenance({ ...m, status: 'concluida', done_date: todayISO() }); toast('Manutenção concluída', 'ok'); go('manutencoes'); });
     shell.content.querySelectorAll('[data-del]').forEach((b) => b.onclick = () => confirmDialog('Excluir esta manutenção?', async () => { await api.deleteMaintenance(b.dataset.del); toast('Excluída', 'ok'); go('manutencoes'); }));
@@ -357,6 +380,46 @@ export async function renderEmpresa(root, user, onLogout) {
     m.overlay.querySelectorAll('[data-pick]').forEach((row) => row.onclick = () => { const mm = list.find((x) => x.id === row.dataset.pick); m.close(); formManutencao(mm, after); });
   }
 
+  /* ver a solicitação do motorista em card, com as fotos anexadas */
+  async function viewMaintRequest(m) {
+    if (!m) return;
+    const veh = vehiclesMap[m.vehicle_id];
+    const isDesg = m.category === 'desgaste';
+    const shots = isDesg
+      ? [{ which: 'photo_path', label: 'Foto do desgaste' }]
+      : [{ which: 'photo_path2', label: 'Foto do veículo' }, { which: 'photo_path', label: 'Foto do painel (km)' }];
+    const mod = modal({
+      title: 'Solicitação do motorista', icon: 'eye',
+      body: `
+        <div class="info-list" style="margin-bottom:1rem">
+          <div class="info-row"><span class="k">Motorista</span><span class="v">${escapeHtml(clientName(m.requested_by))}</span></div>
+          <div class="info-row"><span class="k">Veículo</span><span class="v">${escapeHtml((veh?.brand || '') + ' ' + (veh?.model || '') + ' · ' + (veh?.plate || ''))}</span></div>
+          <div class="info-row"><span class="k">Tipo</span><span class="v">${escapeHtml(m.type || '')}</span></div>
+          <div class="info-row"><span class="k">Quilometragem</span><span class="v">${m.km ? fmt.km(m.km) : '—'}</span></div>
+          <div class="info-row"><span class="k">Solicitado em</span><span class="v">${fmt.date(m.scheduled_date)}</span></div>
+          ${m.description ? `<div class="info-row"><span class="k">Relato</span><span class="v" style="text-align:right;max-width:60%">${escapeHtml(m.description)}</span></div>` : ''}
+        </div>
+        <div class="maint-shots">
+          ${shots.map((s) => `<div class="shot"><div class="shot-label">${s.label}</div><div class="shot-img" data-shot="${s.which}"><div class="spinner"></div></div></div>`).join('')}
+        </div>`,
+      footer: `<button class="btn btn-glass" data-cancel>Fechar</button><button class="btn btn-blue" data-sched>${icon('wrench')} Agendar</button>`,
+    });
+    mod.overlay.querySelector('[data-cancel]').onclick = mod.close;
+    mod.overlay.querySelector('[data-sched]').onclick = () => { mod.close(); scheduleMaintenance(m, () => go('manutencoes')); };
+    for (const s of shots) {
+      const box = mod.overlay.querySelector(`[data-shot="${s.which}"]`);
+      if (!m[s.which]) { box.innerHTML = `<div class="shot-empty">${icon('camera')} Sem foto</div>`; continue; }
+      try {
+        const url = await api.maintenancePhotoUrl(m, s.which);
+        if (!url) { box.innerHTML = `<div class="shot-empty">${icon('camera')} Sem foto</div>`; continue; }
+        box.innerHTML = '';
+        const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener';
+        const img = document.createElement('img'); img.src = url; img.alt = s.label; img.loading = 'lazy';
+        a.appendChild(img); box.appendChild(a);
+      } catch { box.innerHTML = `<div class="shot-empty">${icon('alert')} Erro ao carregar</div>`; }
+    }
+  }
+
   /* aceitar solicitação do motorista: agendar com data + valor, e avisar o motorista */
   async function scheduleMaintenance(m, after) {
     if (!m) return;
@@ -371,6 +434,7 @@ export async function renderEmpresa(root, user, onLogout) {
           <div class="info-row"><span class="k">Tipo</span><span class="v">${escapeHtml(m.type || '')}${m.km ? ' · ' + fmt.km(m.km) : ''}</span></div>
           ${m.description ? `<div class="info-row"><span class="k">Relato</span><span class="v" style="text-align:right;max-width:60%">${escapeHtml(m.description)}</span></div>` : ''}
         </div>
+        ${m.photo_path ? `<button type="button" class="btn btn-glass btn-block btn-sm" id="ver-foto-km" style="margin-bottom:1rem">${icon('camera')} Ver foto da quilometragem</button>` : ''}
         <form id="f-sched">
           <div class="form-grid">
             <div class="field"><label>Data do agendamento</label><input class="input" type="date" name="scheduled_date" value="${m.scheduled_date || todayISO()}" required></div>
@@ -383,6 +447,7 @@ export async function renderEmpresa(root, user, onLogout) {
       footer: `<button class="btn btn-glass" data-cancel>Cancelar</button><button class="btn btn-blue" data-save>${icon('check')} Confirmar agendamento</button>`,
     });
     mod.overlay.querySelector('[data-cancel]').onclick = mod.close;
+    mod.overlay.querySelector('#ver-foto-km')?.addEventListener('click', async () => openFile(await api.maintenancePhotoUrl(m), 'painel-km.jpg'));
     mod.overlay.querySelector('[data-save]').onclick = async () => {
       const f = mod.overlay.querySelector('#f-sched'); if (!f.reportValidity()) return;
       const d = Object.fromEntries(new FormData(f));

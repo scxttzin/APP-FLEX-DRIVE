@@ -32,9 +32,23 @@ function routeUser(user) {
   maybeOfferBiometric(user);
 }
 
+/* true apenas em aparelhos móveis (celular/tablet) — a biometria não é oferecida no desktop */
+function isMobileDevice() {
+  const uaData = navigator.userAgentData;
+  if (uaData && typeof uaData.mobile === 'boolean') return uaData.mobile;
+  const ua = navigator.userAgent || '';
+  const mobileUA = /Android|iPhone|iPad|iPod|Windows Phone|BlackBerry|Mobile/i.test(ua);
+  const iPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1; // iPad moderno
+  const coarseSmall = matchMedia('(pointer: coarse)').matches && matchMedia('(max-width: 820px)').matches;
+  return mobileUA || iPadOS || coarseSmall;
+}
+
 async function maybeOfferBiometric(user) {
   try {
+    // 2) já cadastrada nesta conta/aparelho → nunca mais notificar
     if (isEnrolled() || localStorage.getItem('flexdrive_bio_declined')) return;
+    // 1) só aparelhos móveis (desktop não recebe a oferta de biometria)
+    if (!isMobileDevice()) return;
     if (!(await biometricAvailable())) return;
     setTimeout(() => {
       const m = modal({
