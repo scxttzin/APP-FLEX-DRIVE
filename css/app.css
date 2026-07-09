@@ -348,7 +348,7 @@ table.tbl td.row-actions .btn { flex-shrink: 0; }
 @keyframes toastIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
 
 /* ─── NOTIFICAÇÕES (sino) ─── */
-.topbar-actions { position: relative; }
+.topbar-actions { position: relative; display: flex; align-items: center; gap: 0.6rem; }
 .bell-btn { position: relative; background: rgba(255,255,255,0.6); border: 1px solid var(--gray-6); cursor: pointer; width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; color: var(--gray-2); transition: all .18s; }
 .bell-btn:hover { color: var(--blue); border-color: var(--blue); background: var(--blue-pale); }
 .bell-badge { position: absolute; top: -5px; right: -5px; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 10px; background: var(--red); color: #fff; font-size: 0.68rem; font-weight: 700; display: grid; place-items: center; border: 2px solid var(--off); }
