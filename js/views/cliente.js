@@ -106,7 +106,6 @@ export async function renderCliente(root, user, onLogout) {
               <div class="panel-head"><span class="panel-ico">${icon('bot')}</span><h3>Precisa de ajuda?</h3></div>
               <p class="body-sm" style="margin-bottom:1rem">Converse com o <strong>Flex App</strong>, nosso assistente virtual — ele tira suas dúvidas na hora.</p>
               <button class="btn btn-blue btn-block" id="ir-chat">${icon('chat')} Abrir chat do Flex App</button>
-              <a class="btn btn-glass btn-block" href="https://wa.me/${CONFIG.EMPRESA.whatsapp}" target="_blank" rel="noopener" style="margin-top:.6rem">${icon('whatsapp')} WhatsApp</a>
             </div>
           </div>
         </div>
@@ -140,7 +139,7 @@ export async function renderCliente(root, user, onLogout) {
         <div class="ph-date">${icon('calendar')} ${fmt.weekday(p.due_date)}, ${fmt.date(p.due_date)} · ${quando}</div>
         <div style="margin-top:1.1rem;display:flex;gap:.6rem;flex-wrap:wrap">
           <button class="btn btn-sm" data-pay="${p.id}" style="background:#fff;color:var(--blue);font-weight:700">${icon('pix')} Pagar com Pix</button>
-          <a class="btn btn-glass btn-sm" href="https://wa.me/${CONFIG.EMPRESA.whatsapp}" target="_blank" rel="noopener" style="background:rgba(255,255,255,.85)">${icon('whatsapp')} Dúvidas</a>
+          <a class="btn btn-glass btn-sm" href="https://wa.me/${CONFIG.EMPRESA.whatsapp}" target="_blank" rel="noopener" style="background:rgba(255,255,255,.85)">${icon('whatsapp')} WhatsApp</a>
         </div>
       </div>`;
   }
