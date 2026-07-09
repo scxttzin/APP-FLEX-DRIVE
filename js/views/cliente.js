@@ -74,11 +74,6 @@ export async function renderCliente(root, user, onLogout) {
             <div class="panel glass" style="margin-top:1.4rem">
               <div class="panel-head"><span class="panel-ico">${icon('calendar')}</span><h3>Calendário de pagamentos</h3></div>
               <div id="cal-mount"></div>
-              <div style="display:flex;gap:1.2rem;flex-wrap:wrap;margin-top:1rem;font-size:.78rem;color:var(--gray-3)">
-                <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:4px;background:var(--blue)"></span>A vencer</span>
-                <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:4px;background:var(--green)"></span>Pago</span>
-                <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:4px;background:var(--red)"></span>Atrasado</span>
-              </div>
             </div>
           </div>
 

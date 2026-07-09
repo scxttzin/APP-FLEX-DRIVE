@@ -383,6 +383,25 @@ table.tbl td.row-actions .btn { flex-shrink: 0; }
 .cobr-card-head .cobr-label { flex: 1; font-weight: 600; }
 .brand-fee-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; }
 
+/* ─── Recebimentos agrupados por período (empresa) ─── */
+.rcpt-group { border: 1px solid var(--gray-6); border-radius: var(--radius-sm); margin-bottom: 0.7rem; overflow: hidden; }
+.rcpt-group[open] { background: rgba(255,255,255,0.4); }
+.rcpt-sum { list-style: none; display: flex; align-items: center; gap: 0.7rem; padding: 0.8rem 1rem; cursor: pointer; font-weight: 600; user-select: none; }
+.rcpt-sum::-webkit-details-marker { display: none; }
+.rcpt-chev { display: inline-flex; color: var(--gray-4); transition: transform .18s; flex-shrink: 0; }
+.rcpt-group[open] .rcpt-chev { transform: rotate(90deg); }
+.rcpt-sum-label { flex: 1; min-width: 0; }
+.rcpt-count { font-size: 0.72rem; font-weight: 700; background: var(--blue-pale); color: var(--blue); padding: 0.1rem 0.55rem; border-radius: var(--radius-pill); flex-shrink: 0; }
+.rcpt-total { font-size: 0.82rem; color: var(--gray-2); flex-shrink: 0; }
+.rcpt-group .table-wrap { padding: 0 1rem 0.8rem; }
+
+/* cabeçalho de painel que quebra no mobile (evita o botão sair do card) */
+@media (max-width: 560px) {
+  .panel-head-wrap { flex-wrap: wrap; }
+  .panel-head-wrap h3 { flex: 1 1 auto; }
+  .panel-head-wrap .btn { flex: 1 1 100%; width: 100%; justify-content: center; margin-top: 0.4rem; }
+}
+
 /* ─── PIX (pagamento cliente) ─── */
 .pix-amount { text-align: center; margin-bottom: 1rem; }
 .pix-amount .pa-label { font-size: 0.76rem; color: var(--gray-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }

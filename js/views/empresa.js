@@ -137,6 +137,46 @@ export async function renderEmpresa(root, user, onLogout) {
     shell.content.querySelectorAll('[data-pay]').forEach((b) => b.onclick = () => receberPagamento(b.dataset.pay, () => go('dashboard')));
   }
 
+  /* uma linha da tabela de recebimentos */
+  function paymentRow(p) {
+    return `
+      <tr>
+        <td data-label="Motorista"><div class="cell-drv cell-strong">${escapeHtml(clientName(p.client_id))}<div class="cell-sub">${escapeHtml(vehicleLabel(p.vehicle_id))}</div></div></td>
+        <td class="nowrap" data-label="Vencimento">${fmt.date(p.due_date)}</td>
+        <td class="muted nowrap" data-label="Pago em">${p.paid_date ? fmt.date(p.paid_date) : '—'}</td>
+        <td class="muted nowrap" data-label="Forma">${escapeHtml(p.method || '—')}</td>
+        <td class="cell-strong mono nowrap" data-label="Valor">${fmt.money(p.amount)}</td>
+        <td data-label="Status">${badge(paymentStatus(p))}</td>
+        <td class="row-actions">
+          ${(paymentStatus(p) === 'pago' || p.receipt_name || p.receipt_path) ? `<button class="icon-btn" title="Ver comprovante Pix" data-receipt="${p.id}">${icon('doc')}</button>` : ''}
+          ${paymentStatus(p) !== 'pago' ? `<button class="icon-btn" title="Confirmar recebimento" data-pay="${p.id}">${icon('check')}</button>` : ''}
+          <button class="icon-btn" title="Editar" data-edit="${p.id}">${icon('edit')}</button>
+          <button class="icon-btn danger" title="Excluir" data-del="${p.id}">${icon('trash')}</button>
+        </td>
+      </tr>`;
+  }
+
+  /* agrupa os recebimentos por período: mês atual, meses anteriores do ano e anos anteriores */
+  function groupPayments(payments) {
+    const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+    const monthName = (y, mo) => cap(new Date(y, mo, 1).toLocaleDateString('pt-BR', { month: 'long' }));
+    const now = new Date(); const curY = now.getFullYear(), curM = now.getMonth();
+    const groups = new Map();
+    for (const p of payments) {
+      const d = new Date((p.due_date || todayISO()) + 'T00:00:00');
+      const y = d.getFullYear(), mo = d.getMonth();
+      let k, label, weight;
+      if (y === curY && mo === curM) { k = 'cur'; label = `Mês atual · ${monthName(y, mo)} de ${y}`; weight = 1e9; }
+      else if (y === curY) { k = 'm' + mo; label = `${monthName(y, mo)} de ${y}`; weight = 1e6 + mo; }
+      else { k = 'y' + y; label = `${y}`; weight = y; } // anos anteriores agrupam o ano inteiro
+      if (!groups.has(k)) groups.set(k, { label, weight, rows: [], total: 0 });
+      const g = groups.get(k); g.rows.push(p); g.total += Number(p.amount || 0);
+    }
+    const out = [...groups.values()].sort((a, b) => b.weight - a.weight);
+    out.forEach((g) => g.rows.sort((a, b) => (b.due_date || '').localeCompare(a.due_date || '')));
+    return out;
+  }
+
   /* ════════════ RECEBIMENTOS ════════════ */
   async function pagePagamentos() {
     shell.setTitle('Recebimentos', 'Pagamentos dos motoristas');
@@ -174,28 +214,21 @@ export async function renderEmpresa(root, user, onLogout) {
           <div><button class="btn btn-blue" id="save-cobr">${icon('check')} Salvar método de cobrança</button></div>
         </div>
         <div class="panel glass">
-          <div class="panel-head"><span class="panel-ico">${icon('payments')}</span><h3>Todos os recebimentos</h3>
+          <div class="panel-head panel-head-wrap"><span class="panel-ico">${icon('payments')}</span><h3>Todos os recebimentos</h3>
             <button class="btn btn-blue btn-sm" id="novo-plano">${icon('calendar')} Gerar Cobrança semanal</button></div>
-          <div class="table-wrap"><table class="tbl">
-            <thead><tr><th>Motorista</th><th>Vencimento</th><th>Pago em</th><th>Forma</th><th>Valor</th><th>Status</th><th></th></tr></thead>
-            <tbody>
-              ${payments.length ? payments.map((p) => `
-                <tr>
-                  <td><div class="cell-drv cell-strong">${escapeHtml(clientName(p.client_id))}<div class="cell-sub">${escapeHtml(vehicleLabel(p.vehicle_id))}</div></div></td>
-                  <td class="nowrap">${fmt.date(p.due_date)}</td>
-                  <td class="muted nowrap">${p.paid_date ? fmt.date(p.paid_date) : '—'}</td>
-                  <td class="muted nowrap">${escapeHtml(p.method || '—')}</td>
-                  <td class="cell-strong mono nowrap">${fmt.money(p.amount)}</td>
-                  <td>${badge(paymentStatus(p))}</td>
-                  <td class="row-actions">
-                    ${(paymentStatus(p) === 'pago' || p.receipt_name || p.receipt_path) ? `<button class="icon-btn" title="Ver comprovante Pix" data-receipt="${p.id}">${icon('doc')}</button>` : ''}
-                    ${paymentStatus(p) !== 'pago' ? `<button class="icon-btn" title="Confirmar recebimento" data-pay="${p.id}">${icon('check')}</button>` : ''}
-                    <button class="icon-btn" title="Editar" data-edit="${p.id}">${icon('edit')}</button>
-                    <button class="icon-btn danger" title="Excluir" data-del="${p.id}">${icon('trash')}</button>
-                  </td>
-                </tr>`).join('') : `<tr><td colspan="7">${emptyBox('Nenhum pagamento lançado.')}</td></tr>`}
-            </tbody>
-          </table></div>
+          ${payments.length ? groupPayments(payments).map((g, gi) => `
+            <details class="rcpt-group" ${gi === 0 ? 'open' : ''}>
+              <summary class="rcpt-sum">
+                <span class="rcpt-chev">${icon('chevR')}</span>
+                <span class="rcpt-sum-label">${escapeHtml(g.label)}</span>
+                <span class="rcpt-count">${g.rows.length}</span>
+                <span class="rcpt-total mono">${fmt.money(g.total)}</span>
+              </summary>
+              <div class="table-wrap"><table class="tbl">
+                <thead><tr><th>Motorista</th><th>Vencimento</th><th>Pago em</th><th>Forma</th><th>Valor</th><th>Status</th><th></th></tr></thead>
+                <tbody>${g.rows.map(paymentRow).join('')}</tbody>
+              </table></div>
+            </details>`).join('') : emptyBox('Nenhum pagamento lançado.')}
         </div>
       </div>`;
 
