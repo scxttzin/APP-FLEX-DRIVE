@@ -188,7 +188,7 @@ export async function renderEmpresa(root, user, onLogout) {
                   <td class="cell-strong mono nowrap">${fmt.money(p.amount)}</td>
                   <td>${badge(paymentStatus(p))}</td>
                   <td class="row-actions">
-                    ${(p.receipt_name || p.receipt_path) ? `<button class="icon-btn" title="Ver comprovante Pix" data-receipt="${p.id}">${icon('doc')}</button>` : ''}
+                    ${(paymentStatus(p) === 'pago' || p.receipt_name || p.receipt_path) ? `<button class="icon-btn" title="Ver comprovante Pix" data-receipt="${p.id}">${icon('doc')}</button>` : ''}
                     ${paymentStatus(p) !== 'pago' ? `<button class="icon-btn" title="Confirmar recebimento" data-pay="${p.id}">${icon('check')}</button>` : ''}
                     <button class="icon-btn" title="Editar" data-edit="${p.id}">${icon('edit')}</button>
                     <button class="icon-btn danger" title="Excluir" data-del="${p.id}">${icon('trash')}</button>
@@ -202,7 +202,7 @@ export async function renderEmpresa(root, user, onLogout) {
     setupCobranca(cfg);
     shell.content.querySelector('#novo-plano').onclick = () => formPlano(() => go('pagamentos'));
     shell.content.querySelectorAll('[data-pay]').forEach((b) => b.onclick = () => receberPagamento(b.dataset.pay, () => go('pagamentos')));
-    shell.content.querySelectorAll('[data-receipt]').forEach((b) => b.onclick = async () => { const p = payments.find((x) => x.id === b.dataset.receipt); openFile(await api.receiptUrl(p), p.receipt_name || 'comprovante'); });
+    shell.content.querySelectorAll('[data-receipt]').forEach((b) => b.onclick = async () => { const p = payments.find((x) => x.id === b.dataset.receipt); const url = await api.receiptUrl(p); if (url) openFile(url, p.receipt_name || 'comprovante'); else toast('Este pagamento não tem comprovante anexado pelo motorista.', 'info'); });
     shell.content.querySelectorAll('[data-edit]').forEach((b) => b.onclick = () => formPagamento(payments.find((p) => p.id === b.dataset.edit), () => go('pagamentos')));
     shell.content.querySelectorAll('[data-del]').forEach((b) => b.onclick = () => confirmDialog('Excluir este pagamento?', async () => { await api.deletePayment(b.dataset.del); toast('Pagamento excluído', 'ok'); go('pagamentos'); }));
   }
