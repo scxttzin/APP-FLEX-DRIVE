@@ -364,6 +364,24 @@ table.tbl td.row-actions .btn { flex-shrink: 0; }
 .notif-ico.due { background: var(--amber-pale); color: var(--amber); }
 .notif-item .n-title { font-weight: 600; font-size: 0.86rem; }
 .notif-item .n-sub { font-size: 0.76rem; color: var(--gray-3); }
+/* notificação já vista (cinza) */
+.notif-item.read { opacity: 0.55; }
+.notif-item.read .notif-ico { background: var(--off2) !important; color: var(--gray-4) !important; }
+.notif-item.read .n-title { font-weight: 500; color: var(--gray-3); }
+
+/* ─── Legenda do calendário (motorista) ─── */
+.cal-legend { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; margin-top: 0.9rem; padding-top: 0.8rem; border-top: 1px solid rgba(229,231,235,0.7); }
+.cal-leg { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 600; color: var(--gray-2); }
+.cal-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+.cal-dot.due { background: var(--blue); }
+.cal-dot.paid { background: var(--green); }
+.cal-dot.late { background: var(--red); }
+
+/* ─── Método de cobrança (empresa · Recebimentos) ─── */
+.cobr-card { border: 1px solid var(--gray-6); border-radius: var(--radius-md); padding: 0.9rem; margin-bottom: 0.9rem; background: var(--off); }
+.cobr-card-head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.7rem; }
+.cobr-card-head .cobr-label { flex: 1; font-weight: 600; }
+.brand-fee-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; }
 
 /* ─── PIX (pagamento cliente) ─── */
 .pix-amount { text-align: center; margin-bottom: 1rem; }

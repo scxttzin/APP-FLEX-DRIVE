@@ -35,6 +35,38 @@ function weeklyPaymentRows(weekday, value, weeks = 12, method = 'Pix') {
   return weeklyDates(nextWeekdayISO(weekday), weeks).map((due, i) => ({ amount: Number(value), due_date: due, status: 'pendente', method, week_ref: i + 1, paid_date: null }));
 }
 
+/* ── CONFIGURAÇÃO DE COBRANÇA (métodos Pix + juros por marca) ──
+   Normaliza qualquer formato salvo para a forma nova:
+   { methods:[{id,label,pix_key,pix_name,pix_city}], late_fee_per_day, late_fees:[{brand,value}] } */
+const normStr = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+function normalizePaymentSettings(raw, fallback = {}) {
+  const s = raw || {};
+  let methods = Array.isArray(s.methods) ? s.methods.filter(Boolean) : [];
+  if (!methods.length) {
+    // compat: monta um método padrão a partir das chaves soltas (formato antigo)
+    const pk = s.pix_key ?? fallback.chave ?? '';
+    methods = [{ id: 'default', label: 'Chave principal', pix_key: pk, pix_name: s.pix_name ?? fallback.nome ?? '', pix_city: s.pix_city ?? fallback.cidade ?? '' }];
+  }
+  methods = methods.map((m, i) => ({ id: m.id || ('m' + i), label: m.label || `Chave ${i + 1}`, pix_key: m.pix_key || '', pix_name: m.pix_name || '', pix_city: m.pix_city || '' }));
+  const late_fees = Array.isArray(s.late_fees) ? s.late_fees.filter((x) => x && x.brand).map((x) => ({ brand: String(x.brand).trim(), value: Number(x.value || 0) })) : [];
+  const first = methods[0];
+  return {
+    methods, late_fees,
+    late_fee_per_day: Number(s.late_fee_per_day ?? 0),
+    pix_key: first.pix_key, pix_name: first.pix_name, pix_city: first.pix_city, // legado (1º método)
+  };
+}
+/* juros/dia para uma marca específica (usa exceção da marca ou o valor padrão) */
+export function lateFeeForBrand(cfg, brand) {
+  const ex = (cfg.late_fees || []).find((x) => normStr(x.brand) === normStr(brand));
+  return Number(ex ? ex.value : (cfg.late_fee_per_day || 0));
+}
+/* método de cobrança escolhido para um motorista (por id), com fallback no 1º */
+export function methodForDriver(cfg, methodId) {
+  const list = cfg.methods || [];
+  return list.find((m) => m.id === methodId) || list[0] || null;
+}
+
 /* ════════════════════════════════════════════════════════════
    BACKEND DEMO (localStorage)
    ════════════════════════════════════════════════════════════ */
@@ -75,12 +107,12 @@ const DemoBackend = {
 
   async clients() { return loadDB().clients; },
 
-  async createDriver({ full_name, cpf, email, phone, city, second_name, second_cpf, second_phone, vehicle_id, weekly_value, pay_weekday, weeks }) {
+  async createDriver({ full_name, cpf, email, phone, city, second_name, second_cpf, second_phone, vehicle_id, weekly_value, pay_weekday, weeks, payment_method_id }) {
     const db = loadDB();
     if (db.users.find((x) => x.email.toLowerCase() === String(email).toLowerCase())) throw new Error('Já existe uma conta com este e-mail.');
     const password = genPassword(); const id = uid('u');
     db.users.push({ id, email, password, role: 'cliente', full_name, phone, must_change_password: true });
-    db.clients.push({ id, full_name, email, phone, cpf, city, second_name: second_name || null, second_cpf: second_cpf || null, second_phone: second_phone || null, since: isoDate(new Date()) });
+    db.clients.push({ id, full_name, email, phone, cpf, city, second_name: second_name || null, second_cpf: second_cpf || null, second_phone: second_phone || null, payment_method_id: payment_method_id || null, since: isoDate(new Date()) });
     if (vehicle_id) {
       const v = db.vehicles.find((x) => x.id === vehicle_id);
       if (v) { v.client_id = id; v.status = 'locado'; if (weekly_value) v.weekly_value = Number(weekly_value); }
@@ -238,19 +270,24 @@ const DemoBackend = {
   async updateRequest(id, status) { const db = loadDB(); const r = db.contact_requests.find((x) => x.id === id); if (r) r.status = status; saveDB(db); },
 
   async getPaymentSettings() {
-    const db = loadDB(); const p = CONFIG.EMPRESA.pix || {}; const s = (db.settings && db.settings.payment) || {};
-    return {
-      pix_key: s.pix_key ?? p.chave ?? '', pix_name: s.pix_name ?? p.nome ?? '', pix_city: s.pix_city ?? p.cidade ?? '',
-      late_fee_per_day: Number(s.late_fee_per_day ?? 0),
-    };
+    const db = loadDB();
+    return normalizePaymentSettings((db.settings && db.settings.payment) || {}, CONFIG.EMPRESA.pix || {});
   },
   async savePaymentSettings(data) {
     const db = loadDB(); db.settings = db.settings || {};
     db.settings.payment = {
-      pix_key: (data.pix_key || '').trim(), pix_name: (data.pix_name || '').trim(), pix_city: (data.pix_city || '').trim(),
+      methods: (data.methods || []).map((m) => ({ id: m.id, label: (m.label || '').trim(), pix_key: (m.pix_key || '').trim(), pix_name: (m.pix_name || '').trim(), pix_city: (m.pix_city || '').trim() })),
       late_fee_per_day: Number(data.late_fee_per_day || 0),
+      late_fees: (data.late_fees || []).filter((x) => x && x.brand).map((x) => ({ brand: String(x.brand).trim(), value: Number(x.value || 0) })),
     };
-    saveDB(db); return db.settings.payment;
+    saveDB(db); return normalizePaymentSettings(db.settings.payment, CONFIG.EMPRESA.pix || {});
+  },
+  /* método de cobrança do usuário logado (motorista) já resolvido */
+  async getMyPaymentMethod() {
+    const cfg = await this.getPaymentSettings();
+    const session = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    const c = session ? loadDB().clients.find((x) => x.id === session.id) : null;
+    return methodForDriver(cfg, c?.payment_method_id);
   },
 
   async listPartners() { return loadDB().partners || []; },
@@ -321,10 +358,15 @@ const SupabaseBackend = {
     });
     let user_id = r.user_id || null;
     if (!user_id) { try { const c = await sb(); const prof = unwrap(await c.from('profiles').select('id').eq('email', d.email).single()); user_id = prof?.id; } catch {} }
+    if (user_id && d.payment_method_id) { try { const c = await sb(); await c.from('profiles').update({ payment_method_id: d.payment_method_id }).eq('id', user_id); } catch {} }
     return { email: r.email, password: r.password, user_id };
   },
   async deleteDriver(user_id) { await callAdmin('delete', { user_id }); },
-  async updateDriver(id, data) { const c = await sb(); unwrap(await c.from('profiles').update(data).eq('id', id)); },
+  async updateDriver(id, data) {
+    const c = await sb();
+    try { unwrap(await c.from('profiles').update(data).eq('id', id)); }
+    catch (e) { const { payment_method_id, ...rest } = data; unwrap(await c.from('profiles').update(rest).eq('id', id)); } // coluna ausente
+  },
   async uploadVehiclePhoto(vehicleId, file) {
     const c = await sb();
     const path = `${vehicleId}/${Date.now()}-${file.name}`;
@@ -465,15 +507,35 @@ const SupabaseBackend = {
   async getPaymentSettings() {
     const c = await sb(); const p = CONFIG.EMPRESA.pix || {}; let s = {};
     try { const { data } = await c.from('app_settings').select('*').eq('id', 'payment').maybeSingle(); s = data || {}; } catch (e) { s = {}; }
-    return {
-      pix_key: s.pix_key ?? p.chave ?? '', pix_name: s.pix_name ?? p.nome ?? '', pix_city: s.pix_city ?? p.cidade ?? '',
-      late_fee_per_day: Number(s.late_fee_per_day ?? 0),
-    };
+    // methods/late_fees ficam em colunas jsonb (migration_v11). Faz parse tolerante.
+    const parse = (v) => { if (!v) return null; if (typeof v === 'string') { try { return JSON.parse(v); } catch { return null; } } return v; };
+    return normalizePaymentSettings({ ...s, methods: parse(s.methods), late_fees: parse(s.late_fees) }, p);
   },
   async savePaymentSettings(data) {
     const c = await sb();
-    const row = { id: 'payment', pix_key: (data.pix_key || '').trim(), pix_name: (data.pix_name || '').trim(), pix_city: (data.pix_city || '').trim(), late_fee_per_day: Number(data.late_fee_per_day || 0), updated_at: new Date().toISOString() };
-    return unwrap(await c.from('app_settings').upsert(row).select().single());
+    const methods = (data.methods || []).map((m) => ({ id: m.id, label: (m.label || '').trim(), pix_key: (m.pix_key || '').trim(), pix_name: (m.pix_name || '').trim(), pix_city: (m.pix_city || '').trim() }));
+    const late_fees = (data.late_fees || []).filter((x) => x && x.brand).map((x) => ({ brand: String(x.brand).trim(), value: Number(x.value || 0) }));
+    const first = methods[0] || {};
+    const row = {
+      id: 'payment', updated_at: new Date().toISOString(), late_fee_per_day: Number(data.late_fee_per_day || 0),
+      pix_key: first.pix_key || '', pix_name: first.pix_name || '', pix_city: first.pix_city || '', // 1º método (compat)
+      methods, late_fees,
+    };
+    try { return normalizePaymentSettings(unwrap(await c.from('app_settings').upsert(row).select().single()), CONFIG.EMPRESA.pix || {}); }
+    catch (e) {
+      // colunas methods/late_fees ausentes — grava só o formato antigo
+      const { methods: _m, late_fees: _l, ...legacy } = row;
+      return normalizePaymentSettings(unwrap(await c.from('app_settings').upsert(legacy).select().single()), CONFIG.EMPRESA.pix || {});
+    }
+  },
+  async getMyPaymentMethod() {
+    const cfg = await this.getPaymentSettings();
+    const c = await sb();
+    try {
+      const { data: { user } } = await c.auth.getUser();
+      const { data } = await c.from('profiles').select('payment_method_id').eq('id', user.id).maybeSingle();
+      return methodForDriver(cfg, data?.payment_method_id);
+    } catch { return methodForDriver(cfg, null); }
   },
 
   async listPartners() { const c = await sb(); return unwrap(await c.from('partners').select('*').order('name')); },

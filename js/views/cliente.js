@@ -1,9 +1,10 @@
 /* ============================================================
    ÁREA DO CLIENTE
    ============================================================ */
-import { api } from '../api.js';
+import { api, lateFeeForBrand } from '../api.js';
 import { CONFIG } from '../config.js';
 import { buildShell } from './shell.js';
+import { applyReadState, markNotifRead } from '../notifs.js';
 import { pixPayload, pixQrDataUrl } from '../pix.js';
 import { buildDriverContext, askAssistant, whatsappHandoffUrl, assistantMode } from '../chatbot.js';
 import {
@@ -148,11 +149,13 @@ export async function renderCliente(root, user, onLogout) {
   async function openPayModal(p) {
     if (!p) return;
     const cfg = await api.getPaymentSettings();
+    const method = await api.getMyPaymentMethod();          // chave Pix vinculada a este motorista
+    const veh = p.vehicle_id ? await api.getVehicle(p.vehicle_id) : null;
     const daysLate = paymentStatus(p) === 'atrasado' ? Math.max(0, -daysFromToday(p.due_date)) : 0;
-    const perDay = Number(cfg.late_fee_per_day || 0);
+    const perDay = lateFeeForBrand(cfg, veh?.brand);        // juros/dia conforme a marca do veículo
     const lateFee = daysLate * perDay;
     const total = Number(p.amount) + lateFee;
-    const payload = pixPayload({ key: cfg.pix_key, name: cfg.pix_name, city: cfg.pix_city, amount: total, txid: 'FLEX' + (p.week_ref || '') });
+    const payload = pixPayload({ key: method?.pix_key, name: method?.pix_name, city: method?.pix_city, amount: total, txid: 'FLEX' + (p.week_ref || '') });
     const hasKey = !!payload;
     const m = modal({
       title: 'Pagar com Pix', icon: 'pix',
@@ -290,6 +293,11 @@ export async function renderCliente(root, user, onLogout) {
           <div class="cal-grid">
             ${DOW.map((d) => `<div class="cal-dow">${d}</div>`).join('')}
             ${cells.join('')}
+          </div>
+          <div class="cal-legend">
+            <span class="cal-leg"><span class="cal-dot due"></span>A vencer</span>
+            <span class="cal-leg"><span class="cal-dot paid"></span>Pago</span>
+            <span class="cal-leg"><span class="cal-dot late"></span>Atrasado</span>
           </div>
         </div>`;
       mount.querySelector('#cal-prev').onclick = () => { calRef = new Date(y, mo - 1, 1); render(); };
@@ -800,17 +808,17 @@ export async function renderCliente(root, user, onLogout) {
       const maints = vehicle ? await api.listMaintenances({ vehicle_id: vehicle.id }) : [];
       const agendadas = maints.filter((m) => m.status === 'agendada' && m.requested_by === user.id);
       const np = payments.filter((p) => paymentStatus(p) !== 'pago').sort((a, b) => a.due_date.localeCompare(b.due_date))[0];
-      const items = [
-        ...agendadas.map((m) => ({ cls: 'due', ico: 'wrench', title: 'Manutenção agendada', sub: `${escapeHtml(m.type || '')} · ${fmt.date(m.scheduled_date)}${m.cost ? ' · ' + fmt.money(m.cost) : ''}`, goto: 'manutencao' })),
+      const allItems = [
+        ...agendadas.map((m) => ({ id: `magend:${m.id}:${m.scheduled_date}`, cls: 'due', ico: 'wrench', title: 'Manutenção agendada', sub: `${escapeHtml(m.type || '')} · ${fmt.date(m.scheduled_date)}${m.cost ? ' · ' + fmt.money(m.cost) : ''}`, goto: 'manutencao' })),
       ];
-      if (np) items.push({ cls: 'pay', ico: 'calendar', title: 'Próximo pagamento', sub: `${fmt.money(np.amount)} · ${fmt.date(np.due_date)}`, goto: 'pagamentos' });
-      const count = agendadas.length + (np && daysFromToday(np.due_date) <= 3 ? 1 : 0);
+      if (np) allItems.push({ id: `nextpay:${np.id}`, cls: 'pay', ico: 'calendar', title: 'Próximo pagamento', sub: `${fmt.money(np.amount)} · ${fmt.date(np.due_date)}`, goto: 'pagamentos' });
+      const { visible: items, unreadCount } = applyReadState(user.id, allItems);
       shell.topbarActions.innerHTML = `
-        <button class="bell-btn" id="bell-btn" aria-label="Notificações">${icon('bell')}${count ? `<span class="bell-badge">${count}</span>` : ''}</button>
+        <button class="bell-btn" id="bell-btn" aria-label="Notificações">${icon('bell')}${unreadCount ? `<span class="bell-badge">${unreadCount}</span>` : ''}</button>
         <div class="notif-dropdown" id="notif-dd">
-          <div class="notif-head">${icon('bell')} Notificações</div>
+          <div class="notif-head">${icon('bell')} Notificações ${unreadCount ? `<span class="badge badge-red" style="margin-left:auto">${unreadCount} nova(s)</span>` : ''}</div>
           ${items.length ? items.map((n) => `
-            <div class="notif-item" data-goto="${n.goto}">
+            <div class="notif-item ${n.read ? 'read' : ''}" data-goto="${n.goto}" data-id="${n.id}">
               <div class="notif-ico ${n.cls}">${icon(n.ico)}</div>
               <div style="min-width:0"><div class="n-title">${escapeHtml(n.title)}</div><div class="n-sub">${escapeHtml(n.sub)}</div></div>
             </div>`).join('') : `<div class="empty" style="padding:1.6rem">${icon('check', 'empty-ico')}<p>Nada de novo por aqui.</p></div>`}
@@ -819,7 +827,7 @@ export async function renderCliente(root, user, onLogout) {
       const dd = shell.topbarActions.querySelector('#notif-dd');
       const closeDD = () => { dd.classList.remove('show'); document.removeEventListener('click', closeDD); };
       btn.onclick = (e) => { e.stopPropagation(); const open = dd.classList.toggle('show'); if (open) setTimeout(() => document.addEventListener('click', closeDD), 0); else document.removeEventListener('click', closeDD); };
-      dd.querySelectorAll('[data-goto]').forEach((it) => it.onclick = () => { closeDD(); go(it.dataset.goto); });
+      dd.querySelectorAll('[data-id]').forEach((it) => it.onclick = () => { markNotifRead(user.id, it.dataset.id); closeDD(); go(it.dataset.goto); });
     } catch (e) { /* silencioso */ }
   }
 

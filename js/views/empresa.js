@@ -3,6 +3,7 @@
    ============================================================ */
 import { api } from '../api.js';
 import { buildShell } from './shell.js';
+import { applyReadState, markNotifRead } from '../notifs.js';
 import {
   icon, fmt, badge, toast, modal, confirmDialog, openFile, copyText,
   paymentStatus, todayISO, daysFromToday, escapeHtml, vigencia, safeUrl,
@@ -158,17 +159,19 @@ export async function renderEmpresa(root, user, onLogout) {
           ${kpi('alert', 'Atrasados', `${atras}`, 'requer atenção')}
         </div>
         <div class="panel glass">
-          <div class="panel-head"><span class="panel-ico">${icon('pix')}</span><h3>Configuração de pagamento</h3></div>
-          <p class="body-sm" style="margin-bottom:1rem">Cadastre a chave Pix que os motoristas usam para pagar e defina o juros por dia de atraso. Quando o pagamento está vencido, o Pix gerado para o motorista já vem com o juros embutido.</p>
-          <form id="f-pgto-cfg">
-            <div class="form-grid">
-              <div class="field full"><label>Chave Pix</label><input class="input" name="pix_key" value="${escapeHtml(cfg.pix_key)}" placeholder="CPF, e-mail, telefone ou chave aleatória"></div>
-              <div class="field"><label>Nome do recebedor (máx. 25, sem acentos)</label><input class="input" name="pix_name" value="${escapeHtml(cfg.pix_name)}" maxlength="25" placeholder="Flex Drive Locadora"></div>
-              <div class="field"><label>Cidade (máx. 15, sem acentos)</label><input class="input" name="pix_city" value="${escapeHtml(cfg.pix_city)}" maxlength="15" placeholder="Brasilia"></div>
-              <div class="field"><label>Valor fixo de atraso por dia (R$)</label><input class="input" type="number" step="0.01" min="0" name="late_fee_per_day" value="${cfg.late_fee_per_day}" placeholder="25,00"></div>
-            </div>
-            <button class="btn btn-blue" type="submit">${icon('check')} Salvar configuração</button>
-          </form>
+          <div class="panel-head"><span class="panel-ico">${icon('pix')}</span><h3>Método de cobrança</h3></div>
+          <p class="body-sm" style="margin-bottom:1rem">Cadastre uma ou mais chaves Pix de cobrança. Cada chave pode ser <strong>vinculada a um motorista específico</strong> na aba <strong>Motoristas</strong> (ao cadastrar ou em "Gerenciar pagamento"). O juros por atraso já entra no Pix do motorista automaticamente.</p>
+          <div id="cobr-methods"></div>
+          <button type="button" class="btn btn-glass btn-sm" id="add-method" style="margin:.2rem 0 1.2rem">${icon('plus')} Adicionar método de cobrança</button>
+
+          <div class="eyebrow" style="margin:.2rem 0 .5rem">Juros por dia de atraso</div>
+          <p class="body-sm" style="margin-bottom:.8rem">O valor de atraso por dia pode variar conforme a <strong>marca do veículo</strong>. Defina um valor padrão e, se quiser, exceções por marca (ex.: BYD).</p>
+          <div class="form-grid">
+            <div class="field"><label>Valor padrão por dia — outras marcas (R$)</label><input class="input" type="number" step="0.01" min="0" id="late-default" value="${cfg.late_fee_per_day}" placeholder="25,00"></div>
+          </div>
+          <div id="late-brands"></div>
+          <button type="button" class="btn btn-glass btn-sm" id="add-brand-fee" style="margin:.2rem 0 1.2rem">${icon('plus')} Adicionar valor por marca</button>
+          <div><button class="btn btn-blue" id="save-cobr">${icon('check')} Salvar método de cobrança</button></div>
         </div>
         <div class="panel glass">
           <div class="panel-head"><span class="panel-ico">${icon('payments')}</span><h3>Todos os recebimentos</h3>
@@ -185,7 +188,7 @@ export async function renderEmpresa(root, user, onLogout) {
                   <td class="cell-strong mono nowrap">${fmt.money(p.amount)}</td>
                   <td>${badge(paymentStatus(p))}</td>
                   <td class="row-actions">
-                    ${paymentStatus(p) === 'em_analise' ? `<button class="icon-btn" title="Ver comprovante" data-receipt="${p.id}">${icon('eye')}</button>` : ''}
+                    ${(p.receipt_name || p.receipt_path) ? `<button class="icon-btn" title="Ver comprovante Pix" data-receipt="${p.id}">${icon('doc')}</button>` : ''}
                     ${paymentStatus(p) !== 'pago' ? `<button class="icon-btn" title="Confirmar recebimento" data-pay="${p.id}">${icon('check')}</button>` : ''}
                     <button class="icon-btn" title="Editar" data-edit="${p.id}">${icon('edit')}</button>
                     <button class="icon-btn danger" title="Excluir" data-del="${p.id}">${icon('trash')}</button>
@@ -196,20 +199,70 @@ export async function renderEmpresa(root, user, onLogout) {
         </div>
       </div>`;
 
-    const cfgForm = shell.content.querySelector('#f-pgto-cfg');
-    cfgForm?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const btn = cfgForm.querySelector('button[type="submit"]');
-      btn.disabled = true;
-      try { await api.savePaymentSettings(Object.fromEntries(new FormData(cfgForm))); toast('Configuração de pagamento salva! 💾', 'ok'); }
-      catch (err) { toast('Erro ao salvar: ' + err.message, 'err'); }
-      finally { btn.disabled = false; }
-    });
+    setupCobranca(cfg);
     shell.content.querySelector('#novo-plano').onclick = () => formPlano(() => go('pagamentos'));
     shell.content.querySelectorAll('[data-pay]').forEach((b) => b.onclick = () => receberPagamento(b.dataset.pay, () => go('pagamentos')));
     shell.content.querySelectorAll('[data-receipt]').forEach((b) => b.onclick = async () => { const p = payments.find((x) => x.id === b.dataset.receipt); openFile(await api.receiptUrl(p), p.receipt_name || 'comprovante'); });
     shell.content.querySelectorAll('[data-edit]').forEach((b) => b.onclick = () => formPagamento(payments.find((p) => p.id === b.dataset.edit), () => go('pagamentos')));
     shell.content.querySelectorAll('[data-del]').forEach((b) => b.onclick = () => confirmDialog('Excluir este pagamento?', async () => { await api.deletePayment(b.dataset.del); toast('Pagamento excluído', 'ok'); go('pagamentos'); }));
+  }
+
+  /* editor dinâmico de métodos de cobrança + juros por marca */
+  function setupCobranca(cfg) {
+    const methods = (cfg.methods || []).map((m) => ({ ...m }));
+    const brandFees = (cfg.late_fees || []).map((x) => ({ ...x }));
+    const methodsBox = shell.content.querySelector('#cobr-methods');
+    const brandsBox = shell.content.querySelector('#late-brands');
+    let seq = methods.length;
+
+    const renderMethods = () => {
+      methodsBox.innerHTML = methods.map((m, i) => `
+        <div class="cobr-card" data-mi="${i}">
+          <div class="cobr-card-head">
+            <input class="input cobr-label" data-f="label" value="${escapeHtml(m.label || '')}" placeholder="Nome do método (ex.: Chave BYD)">
+            ${methods.length > 1 ? `<button type="button" class="icon-btn danger" data-rm-method="${i}" title="Remover">${icon('trash')}</button>` : ''}
+          </div>
+          <div class="form-grid">
+            <div class="field full"><label>Chave Pix</label><input class="input" data-f="pix_key" value="${escapeHtml(m.pix_key || '')}" placeholder="CPF, e-mail, telefone ou chave aleatória"></div>
+            <div class="field"><label>Nome do recebedor (máx. 25)</label><input class="input" data-f="pix_name" maxlength="25" value="${escapeHtml(m.pix_name || '')}" placeholder="Flex Drive Locadora"></div>
+            <div class="field"><label>Cidade (máx. 15)</label><input class="input" data-f="pix_city" maxlength="15" value="${escapeHtml(m.pix_city || '')}" placeholder="Brasilia"></div>
+          </div>
+        </div>`).join('');
+      methodsBox.querySelectorAll('.cobr-card').forEach((card) => {
+        const i = Number(card.dataset.mi);
+        card.querySelectorAll('[data-f]').forEach((inp) => inp.oninput = () => { methods[i][inp.dataset.f] = inp.value; });
+        card.querySelector('[data-rm-method]')?.addEventListener('click', () => { methods.splice(i, 1); renderMethods(); });
+      });
+    };
+    const renderBrands = () => {
+      brandsBox.innerHTML = brandFees.map((x, i) => `
+        <div class="brand-fee-row" data-bi="${i}">
+          <input class="input" data-bf="brand" value="${escapeHtml(x.brand || '')}" placeholder="Marca (ex.: BYD)" list="brand-list" style="flex:1">
+          <input class="input" data-bf="value" type="number" step="0.01" min="0" value="${x.value ?? ''}" placeholder="R$/dia" style="width:120px">
+          <button type="button" class="icon-btn danger" data-rm-brand="${i}" title="Remover">${icon('trash')}</button>
+        </div>`).join('') + `<datalist id="brand-list">${[...new Set(Object.values(vehiclesMap).map((v) => v.brand).filter(Boolean))].map((b) => `<option>${escapeHtml(b)}</option>`).join('')}</datalist>`;
+      brandsBox.querySelectorAll('.brand-fee-row').forEach((row) => {
+        const i = Number(row.dataset.bi);
+        row.querySelectorAll('[data-bf]').forEach((inp) => inp.oninput = () => { brandFees[i][inp.dataset.bf] = inp.dataset.bf === 'value' ? inp.value : inp.value; });
+        row.querySelector('[data-rm-brand]').onclick = () => { brandFees.splice(i, 1); renderBrands(); };
+      });
+    };
+    renderMethods(); renderBrands();
+
+    shell.content.querySelector('#add-method').onclick = () => { methods.push({ id: 'm' + (seq++) + '-' + Date.now().toString(36), label: '', pix_key: '', pix_name: '', pix_city: '' }); renderMethods(); };
+    shell.content.querySelector('#add-brand-fee').onclick = () => { brandFees.push({ brand: '', value: '' }); renderBrands(); };
+    shell.content.querySelector('#save-cobr').onclick = async (e) => {
+      const btn = e.currentTarget; btn.disabled = true;
+      try {
+        await api.savePaymentSettings({
+          methods: methods.filter((m) => (m.pix_key || '').trim() || (m.label || '').trim()),
+          late_fee_per_day: Number(shell.content.querySelector('#late-default').value || 0),
+          late_fees: brandFees.filter((x) => (x.brand || '').trim()).map((x) => ({ brand: x.brand, value: Number(x.value || 0) })),
+        });
+        toast('Método de cobrança salvo! 💾', 'ok');
+      } catch (err) { toast('Erro ao salvar: ' + err.message, 'err'); }
+      finally { btn.disabled = false; }
+    };
   }
 
   /* gerar plano semanal de cobranças */
@@ -345,6 +398,7 @@ export async function renderEmpresa(root, user, onLogout) {
                   <td class="mono">${fmt.money(m.cost)}</td>
                   <td>${badge(m.status)}</td>
                   <td class="row-actions">
+                    ${(m.photo_path || m.photo_path2 || m.km) ? `<button class="icon-btn" title="Ver anexos do motorista" data-view="${m.id}">${icon('eye')}</button>` : ''}
                     ${m.status !== 'concluida' ? `<button class="icon-btn" title="Concluir" data-done="${m.id}">${icon('check')}</button>` : ''}
                     <button class="icon-btn" title="Editar" data-edit="${m.id}">${icon('edit')}</button>
                     <button class="icon-btn danger" title="Excluir" data-del="${m.id}">${icon('trash')}</button>
@@ -404,10 +458,10 @@ export async function renderEmpresa(root, user, onLogout) {
         <div class="maint-shots">
           ${shots.map((s) => `<div class="shot"><div class="shot-label">${s.label}</div><div class="shot-img" data-shot="${s.which}"><div class="spinner"></div></div></div>`).join('')}
         </div>`,
-      footer: `<button class="btn btn-glass" data-cancel>Fechar</button><button class="btn btn-blue" data-sched>${icon('wrench')} Agendar</button>`,
+      footer: `<button class="btn btn-glass" data-cancel>Fechar</button>${m.status === 'solicitada' ? `<button class="btn btn-blue" data-sched>${icon('wrench')} Agendar</button>` : ''}`,
     });
     mod.overlay.querySelector('[data-cancel]').onclick = mod.close;
-    mod.overlay.querySelector('[data-sched]').onclick = () => { mod.close(); scheduleMaintenance(m, () => go('manutencoes')); };
+    mod.overlay.querySelector('[data-sched]')?.addEventListener('click', () => { mod.close(); scheduleMaintenance(m, () => go('manutencoes')); });
     for (const s of shots) {
       const box = mod.overlay.querySelector(`[data-shot="${s.which}"]`);
       if (!m[s.which]) { box.innerHTML = `<div class="shot-empty">${icon('camera')} Sem foto</div>`; continue; }
@@ -839,8 +893,10 @@ export async function renderEmpresa(root, user, onLogout) {
   /* alterar valor / dia das cobranças pendentes do motorista */
   async function managePayment(c, vehicle) {
     const pend = (await api.listPayments({ client_id: c.id })).filter((p) => paymentStatus(p) !== 'pago').sort((a, b) => a.due_date.localeCompare(b.due_date));
+    const cfg = await api.getPaymentSettings();
     const curVal = vehicle?.weekly_value || pend[0]?.amount || '';
     const curWd = pend[0] ? new Date(pend[0].due_date + 'T00:00:00').getDay() : 5;
+    const curMethod = c.payment_method_id || (cfg.methods[0] && cfg.methods[0].id);
     const m = modal({
       title: 'Gerenciar pagamento', icon: 'payments',
       body: `
@@ -848,6 +904,7 @@ export async function renderEmpresa(root, user, onLogout) {
         <div class="form-grid">
           <div class="field"><label>Valor semanal (R$)</label><input class="input" type="number" step="0.01" id="mp-amount" value="${curVal}"></div>
           <div class="field"><label>Dia de pagamento</label><select class="select" id="mp-weekday">${WEEKDAYS.map((w) => `<option value="${w.v}" ${w.v === curWd ? 'selected' : ''}>${w.l}</option>`).join('')}</select></div>
+          <div class="field full"><label>Chave Pix de cobrança (método)</label><select class="select" id="mp-method">${(cfg.methods || []).map((mm) => `<option value="${mm.id}" ${mm.id === curMethod ? 'selected' : ''}>${escapeHtml(mm.label)}${mm.pix_key ? ' · ' + escapeHtml(mm.pix_key) : ''}</option>`).join('')}</select></div>
         </div>`,
       footer: `<button class="btn btn-glass" data-cancel>Cancelar</button><button class="btn btn-blue" data-save>${icon('check')} Aplicar</button>`,
     });
@@ -855,6 +912,7 @@ export async function renderEmpresa(root, user, onLogout) {
     m.overlay.querySelector('[data-save]').onclick = async () => {
       const amount = Number(m.overlay.querySelector('#mp-amount').value);
       const weekday = Number(m.overlay.querySelector('#mp-weekday').value);
+      const methodId = m.overlay.querySelector('#mp-method').value;
       const btn = m.overlay.querySelector('[data-save]'); btn.disabled = true; btn.innerHTML = '<span class="spinner" style="width:16px;height:16px"></span> Aplicando...';
       try {
         for (const p of pend) {
@@ -862,6 +920,7 @@ export async function renderEmpresa(root, user, onLogout) {
           await api.savePayment({ id: p.id, amount, due_date: d.toISOString().slice(0, 10) });
         }
         if (vehicle && amount) await api.saveVehicle({ id: vehicle.id, weekly_value: amount });
+        if (methodId) await api.updateDriver(c.id, { payment_method_id: methodId });
         toast('Pagamentos atualizados.', 'ok'); m.close(); go('motoristas');
       } catch (err) { toast('Erro: ' + err.message, 'err'); btn.disabled = false; btn.innerHTML = `${icon('check')} Aplicar`; }
     };
@@ -898,6 +957,8 @@ export async function renderEmpresa(root, user, onLogout) {
 
   async function formMotorista(after) {
     const vehicles = Object.values(vehiclesMap);
+    const cfg = await api.getPaymentSettings();
+    const methodOpts = (cfg.methods || []).map((mm) => `<option value="${mm.id}">${escapeHtml(mm.label)}${mm.pix_key ? ' · ' + escapeHtml(mm.pix_key) : ''}</option>`).join('');
     const m = modal({
       title: 'Cadastrar novo motorista', icon: 'users',
       body: `
@@ -916,8 +977,9 @@ export async function renderEmpresa(root, user, onLogout) {
           <div class="form-grid">
             <div class="field"><label>Valor por semana (R$)</label><input class="input" type="number" step="0.01" name="weekly_value" placeholder="650"></div>
             <div class="field"><label>Dia a ser pago</label><select class="select" name="pay_weekday">${WEEKDAYS.map((w) => `<option value="${w.v}" ${w.v === 5 ? 'selected' : ''}>${w.l}</option>`).join('')}</select></div>
+            <div class="field full"><label>Chave Pix de cobrança (método)</label><select class="select" name="payment_method_id">${methodOpts}</select></div>
           </div>
-          <div class="body-sm" style="margin:-.2rem 0 .2rem">Com valor + veículo, geramos 12 cobranças semanais automaticamente.</div>
+          <div class="body-sm" style="margin:-.2rem 0 .2rem">Com valor + veículo, geramos 12 cobranças semanais automaticamente. A chave escolhida é a que o motorista usa para pagar.</div>
 
           <div class="eyebrow" style="margin:.7rem 0 .5rem">Contrato de locação</div>
           <div class="field" style="margin-bottom:.2rem"><label>Contrato assinado (opcional)</label>
@@ -1233,26 +1295,27 @@ export async function renderEmpresa(root, user, onLogout) {
       const semana = payments.filter((p) => paymentStatus(p) === 'pendente' && daysFromToday(p.due_date) > 0 && daysFromToday(p.due_date) <= 7);
       const manutReq = maints.filter((m) => m.status === 'solicitada');
       const renovReq = contracts.filter((c) => c.status === 'renovacao_solicitada');
-      const count = analise.length + manutReq.length + renovReq.length + atras.length + hoje.length;
-      const items = [
-        ...analise.map((p) => ({ cls: 'pay', ico: 'check', title: `${clientName(p.client_id)} enviou comprovante`, sub: `${fmt.money(p.amount)} · confirme o recebimento`, goto: 'pagamentos' })),
-        ...manutReq.map((m) => ({ cls: 'due', ico: 'wrench', title: `Manutenção solicitada — ${clientName(m.requested_by)}`, sub: `${escapeHtml(m.type || '')} · ${vehiclesMap[m.vehicle_id]?.plate || ''}`, goto: 'manutencoes' })),
-        ...renovReq.map((c) => ({ cls: 'due', ico: 'renew', title: `Renovação de contrato — ${clientName(c.client_id)}`, sub: `${vehiclesMap[c.vehicle_id]?.plate || ''} · enviar novo documento`, goto: 'documentos' })),
-        ...atras.map((p) => ({ cls: 'late', ico: 'alert', title: `Atrasado — ${clientName(p.client_id)}`, sub: `${fmt.money(p.amount)} · venceu ${fmt.date(p.due_date)}`, goto: 'pagamentos' })),
-        ...hoje.map((p) => ({ cls: 'due', ico: 'clock', title: `Vence hoje — ${clientName(p.client_id)}`, sub: `${fmt.money(p.amount)}`, goto: 'pagamentos' })),
-        ...semana.map((p) => ({ cls: 'due', ico: 'calendar', title: `Vence em ${daysFromToday(p.due_date)} dia(s) — ${clientName(p.client_id)}`, sub: `${fmt.money(p.amount)} · ${fmt.date(p.due_date)}`, goto: 'pagamentos' })),
+      const allItems = [
+        ...analise.map((p) => ({ id: `analise:${p.id}`, cls: 'pay', ico: 'check', title: `${clientName(p.client_id)} enviou comprovante`, sub: `${fmt.money(p.amount)} · confirme o recebimento`, goto: 'pagamentos' })),
+        ...manutReq.map((m) => ({ id: `manut:${m.id}`, cls: 'due', ico: 'wrench', title: `Manutenção solicitada — ${clientName(m.requested_by)}`, sub: `${escapeHtml(m.type || '')} · ${vehiclesMap[m.vehicle_id]?.plate || ''}`, goto: 'manutencoes' })),
+        ...renovReq.map((c) => ({ id: `renov:${c.id}`, cls: 'due', ico: 'renew', title: `Renovação de contrato — ${clientName(c.client_id)}`, sub: `${vehiclesMap[c.vehicle_id]?.plate || ''} · enviar novo documento`, goto: 'documentos' })),
+        ...atras.map((p) => ({ id: `late:${p.id}`, cls: 'late', ico: 'alert', title: `Atrasado — ${clientName(p.client_id)}`, sub: `${fmt.money(p.amount)} · venceu ${fmt.date(p.due_date)}`, goto: 'pagamentos' })),
+        ...hoje.map((p) => ({ id: `hoje:${p.id}`, cls: 'due', ico: 'clock', title: `Vence hoje — ${clientName(p.client_id)}`, sub: `${fmt.money(p.amount)}`, goto: 'pagamentos' })),
+        ...semana.map((p) => ({ id: `semana:${p.id}`, cls: 'due', ico: 'calendar', title: `Vence em ${daysFromToday(p.due_date)} dia(s) — ${clientName(p.client_id)}`, sub: `${fmt.money(p.amount)} · ${fmt.date(p.due_date)}`, goto: 'pagamentos' })),
       ];
-      const latest = (currentKey === 'dashboard' && items.length) ? items[0] : null;
+      const { visible: items, unreadCount } = applyReadState(user.id, allItems);
+      // chip do dashboard: mostra sempre a 1ª notificação AINDA NÃO vista
+      const latest = (currentKey === 'dashboard') ? items.find((i) => !i.read) : null;
       shell.topbarActions.innerHTML = `
-        ${latest ? `<button class="notif-latest ${latest.cls}" data-goto="${latest.goto}" title="Ver notificação">
+        ${latest ? `<button class="notif-latest ${latest.cls}" data-latest="${latest.id}" data-goto="${latest.goto}" title="Marcar como vista">
           <span class="nl-ico">${icon(latest.ico)}</span>
           <span class="nl-txt"><span class="nl-title">${escapeHtml(latest.title)}</span><span class="nl-sub">${escapeHtml(latest.sub)}</span></span>
         </button>` : ''}
-        <button class="bell-btn" id="bell-btn" aria-label="Notificações">${icon('bell')}${count ? `<span class="bell-badge">${count}</span>` : ''}</button>
+        <button class="bell-btn" id="bell-btn" aria-label="Notificações">${icon('bell')}${unreadCount ? `<span class="bell-badge">${unreadCount}</span>` : ''}</button>
         <div class="notif-dropdown" id="notif-dd">
-          <div class="notif-head">${icon('bell')} Notificações ${count ? `<span class="badge badge-red" style="margin-left:auto">${count} nova(s)</span>` : ''}</div>
+          <div class="notif-head">${icon('bell')} Notificações ${unreadCount ? `<span class="badge badge-red" style="margin-left:auto">${unreadCount} nova(s)</span>` : ''}</div>
           ${items.length ? items.map((n) => `
-            <div class="notif-item" data-goto="${n.goto}">
+            <div class="notif-item ${n.read ? 'read' : ''}" data-goto="${n.goto}" data-id="${n.id}">
               <div class="notif-ico ${n.cls}">${icon(n.ico)}</div>
               <div style="min-width:0"><div class="n-title">${escapeHtml(n.title)}</div><div class="n-sub">${escapeHtml(n.sub)}</div></div>
             </div>`).join('') : `<div class="empty" style="padding:1.6rem">${icon('check', 'empty-ico')}<p>Tudo em dia! 🎉</p></div>`}
@@ -1261,9 +1324,10 @@ export async function renderEmpresa(root, user, onLogout) {
       const dd = shell.topbarActions.querySelector('#notif-dd');
       const closeDD = () => { dd.classList.remove('show'); document.removeEventListener('click', closeDD); };
       btn.onclick = (e) => { e.stopPropagation(); const open = dd.classList.toggle('show'); if (open) setTimeout(() => document.addEventListener('click', closeDD), 0); else document.removeEventListener('click', closeDD); };
-      dd.querySelectorAll('[data-goto]').forEach((it) => it.onclick = () => { closeDD(); go(it.dataset.goto); });
+      dd.querySelectorAll('[data-id]').forEach((it) => it.onclick = () => { markNotifRead(user.id, it.dataset.id); closeDD(); go(it.dataset.goto); });
       const nl = shell.topbarActions.querySelector('.notif-latest');
-      if (nl) nl.onclick = () => go(nl.dataset.goto);
+      // chip do dashboard: marcar como vista e avançar para a próxima (sem sair da tela)
+      if (nl) nl.onclick = () => { markNotifRead(user.id, nl.dataset.latest); refreshNotifications(); };
     } catch (e) { /* silencioso */ }
   }
 
