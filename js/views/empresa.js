@@ -217,7 +217,7 @@ export async function renderEmpresa(root, user, onLogout) {
         </div>
         <div class="panel glass cobr-panel">
           <div class="panel-head"><span class="panel-ico">${icon('pix')}</span><h3>Método de cobrança</h3></div>
-          <p class="body-sm" style="margin-bottom:.7rem">Chaves Pix de cobrança — cada uma pode ser vinculada a um motorista na aba <strong>Motoristas</strong>. O juros de atraso já entra no Pix.</p>
+          <p class="body-sm" style="margin-bottom:.7rem">Chaves Pix de cobrança — cada uma pode ser vinculada a um motorista na aba <strong>Motoristas</strong>.</p>
           <div id="cobr-methods"></div>
           <button type="button" class="btn btn-glass btn-sm" id="add-method">${icon('plus')} Adicionar chave</button>
 
@@ -225,7 +225,7 @@ export async function renderEmpresa(root, user, onLogout) {
             <div>
               <div class="eyebrow" style="margin:0 0 .4rem">Juros por dia de atraso</div>
               <div class="field" style="margin:0"><label>Padrão — outras marcas (R$/dia)</label><input class="input" type="number" step="0.01" min="0" id="late-default" value="${cfg.late_fee_per_day}" placeholder="25,00"></div>
-              <div class="body-sm" style="margin-top:.4rem">O valor informado será cobrado a mais, por cada dia de atraso no pagamento de cada motorista.</div>
+              <div class="body-sm" style="margin-top:.4rem">O valor informado será acrescentado automaticamente em cada cobrança pix, por cada dia de atraso no pagamento do motorista.</div>
             </div>
             <div>
               <div class="eyebrow" style="margin:0 0 .4rem">Exceções por marca (ex.: BYD)</div>
