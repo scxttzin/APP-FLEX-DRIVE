@@ -185,8 +185,20 @@ export async function copyText(text) {
 /* abre/baixa um arquivo (data URL no demo, signed URL no real) */
 export function openFile(url, fallbackName = 'documento') {
   if (!url) { toast('Arquivo de exemplo — envie um arquivo real para visualizar.', 'info'); return; }
+  let blobUrl = null;
+  // data: URL → converte para Blob, assim o PDF/imagem ABRE para visualização (em vez de só baixar)
+  if (url.startsWith('data:')) {
+    try {
+      const [meta, b64] = url.split(',');
+      const mime = (meta.match(/data:([^;]+)/) || [])[1] || 'application/octet-stream';
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      blobUrl = URL.createObjectURL(new Blob([bytes], { type: mime }));
+    } catch { blobUrl = null; }
+  }
   const a = document.createElement('a');
-  a.href = url; a.target = '_blank'; a.rel = 'noopener';
-  if (url.startsWith('data:')) a.download = fallbackName;
+  a.href = blobUrl || url; a.target = '_blank'; a.rel = 'noopener';
   document.body.appendChild(a); a.click(); a.remove();
+  if (blobUrl) setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
 }

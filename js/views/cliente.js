@@ -81,7 +81,7 @@ export async function renderCliente(root, user, onLogout) {
             ${vehicle ? `
             <div class="panel glass">
               <div class="panel-head"><span class="panel-ico">${icon('car')}</span><h3>Meu veículo</h3></div>
-              <div class="veh-thumb" style="border-radius:16px;margin-bottom:1rem"><img src="${vehicle.photo_url || 'assets/car-placeholder.png'}" alt="" onerror="this.onerror=null;this.src='assets/car-placeholder.png'" style="${vehicle.photo_url ? 'height:100%;width:100%;object-fit:cover' : ''}"></div>
+              <div class="veh-thumb" style="border-radius:16px;margin-bottom:1rem"><img src="${vehicle.photo_url || 'assets/car-placeholder.png'}" alt="" onerror="this.onerror=null;this.src='assets/car-placeholder.png'" class="${vehicle.photo_url ? 'veh-photo' : ''}"></div>
               <h3 style="margin-bottom:.2rem">${escapeHtml(vehicle.brand)} ${escapeHtml(vehicle.model)}</h3>
               <span class="plate" style="display:inline-block;font-weight:700;font-size:.8rem;letter-spacing:.08em;color:var(--gray-3);background:var(--off2);padding:.2rem .5rem;border-radius:6px">${escapeHtml(vehicle.plate)}</span>
               <div class="info-list" style="margin-top:1rem">
@@ -322,7 +322,7 @@ export async function renderCliente(root, user, onLogout) {
       <div class="fade-in">
         <div class="grid-cols grid-2-3">
           <div class="panel glass">
-            <div class="veh-thumb" style="border-radius:18px;height:200px;margin-bottom:1.2rem"><img src="${vehicle.photo_url || 'assets/car-placeholder.png'}" style="${vehicle.photo_url ? 'height:100%;width:100%;object-fit:cover' : 'height:140px'}" alt="" onerror="this.onerror=null;this.src='assets/car-placeholder.png'"></div>
+            <div class="veh-thumb" style="border-radius:18px;height:200px;margin-bottom:1.2rem"><img src="${vehicle.photo_url || 'assets/car-placeholder.png'}" class="${vehicle.photo_url ? 'veh-photo' : ''}" alt="" onerror="this.onerror=null;this.src='assets/car-placeholder.png'"></div>
             <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:1rem">
               <div><h2 style="font-size:1.4rem">${escapeHtml(vehicle.brand)} ${escapeHtml(vehicle.model)}</h2>
               <span class="plate" style="display:inline-block;font-weight:700;font-size:.8rem;letter-spacing:.08em;color:var(--gray-3);background:var(--off2);padding:.2rem .5rem;border-radius:6px;margin-top:.3rem">${escapeHtml(vehicle.plate)}</span></div>
