@@ -519,7 +519,7 @@ html { overflow-x: hidden; }
 .chat-wa { padding: 0.5rem; }
 .chat-wa svg { color: var(--green); }
 
-.chat-scroll { flex: 1; overflow-y: auto; padding: 1.1rem 1.1rem 0.5rem; display: flex; flex-direction: column; gap: 0.7rem; scroll-behavior: smooth; }
+.chat-scroll { flex: 1; overflow-y: auto; padding: 1.1rem 1.1rem 0.5rem; display: flex; flex-direction: column; gap: 0.7rem; scroll-behavior: smooth; background-color: #EEF3FC; background-image: url(../assets/chat-bg.svg); background-size: 300px 300px; background-repeat: repeat; }
 .chat-msg { display: flex; align-items: flex-end; gap: 0.5rem; max-width: 86%; }
 .chat-msg.me { align-self: flex-end; }
 .chat-msg.bot { align-self: flex-start; }

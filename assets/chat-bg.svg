@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300">
+  <g fill="none" stroke="#2563EB" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.09">
+    <!-- carro -->
+    <g transform="translate(22,42) rotate(-8) scale(1.7)">
+      <path d="M5 13l1.5-4.5A2 2 0 0 1 8.4 7h7.2a2 2 0 0 1 1.9 1.5L19 13M5 13h14v4H5v-4Z"/>
+      <circle cx="8" cy="17" r="1.4"/><circle cx="16" cy="17" r="1.4"/>
+    </g>
+    <!-- contrato -->
+    <g transform="translate(150,26) rotate(9) scale(1.5)">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z"/>
+      <path d="M14 2v6h6"/><path d="M8 13h8M8 17h6"/>
+    </g>
+    <!-- raio -->
+    <g transform="translate(250,86) rotate(0) scale(1.5)">
+      <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z"/>
+    </g>
+    <!-- pix -->
+    <g transform="translate(118,118) rotate(0) scale(1.4)">
+      <path d="M12 2 22 12 12 22 2 12 12 2Z"/><path d="M7 12h10M12 7v10"/>
+    </g>
+    <!-- chave inglesa (manutenção) -->
+    <g transform="translate(36,138) rotate(14) scale(1.6)">
+      <path d="M14.7 6.3a4 4 0 0 1-5 5L4 17v3h3l5.7-5.7a4 4 0 0 0 5-5l-2.4 2.4-2.1-.6-.6-2.1 2.7-2.7Z"/>
+    </g>
+    <!-- chip (tecnologia) -->
+    <g transform="translate(190,172) rotate(-8) scale(1.55)">
+      <rect x="7" y="7" width="10" height="10" rx="1.5"/>
+      <path d="M10 3v3M14 3v3M10 18v3M14 18v3M3 10h3M3 14h3M18 10h3M18 14h3"/>
+    </g>
+    <!-- contrato menor -->
+    <g transform="translate(256,214) rotate(-6) scale(1.2)">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z"/>
+      <path d="M14 2v6h6"/><path d="M8 13h8M8 17h6"/>
+    </g>
+    <!-- raio menor -->
+    <g transform="translate(28,232) rotate(6) scale(1.3)">
+      <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z"/>
+    </g>
+    <!-- carro menor -->
+    <g transform="translate(120,232) rotate(6) scale(1.3)">
+      <path d="M5 13l1.5-4.5A2 2 0 0 1 8.4 7h7.2a2 2 0 0 1 1.9 1.5L19 13M5 13h14v4H5v-4Z"/>
+      <circle cx="8" cy="17" r="1.4"/><circle cx="16" cy="17" r="1.4"/>
+    </g>
+  </g>
+</svg>
