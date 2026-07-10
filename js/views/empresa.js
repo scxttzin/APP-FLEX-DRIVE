@@ -215,20 +215,24 @@ export async function renderEmpresa(root, user, onLogout) {
           ${kpi('clock', 'Pendentes', `${pend}`, 'aguardando')}
           ${kpi('alert', 'Atrasados', `${atras}`, 'requer atenção')}
         </div>
-        <div class="panel glass">
+        <div class="panel glass cobr-panel">
           <div class="panel-head"><span class="panel-ico">${icon('pix')}</span><h3>Método de cobrança</h3></div>
-          <p class="body-sm" style="margin-bottom:1rem">Cadastre uma ou mais chaves Pix de cobrança. Cada chave pode ser <strong>vinculada a um motorista específico</strong> na aba <strong>Motoristas</strong> (ao cadastrar ou em "Gerenciar pagamento"). O juros por atraso já entra no Pix do motorista automaticamente.</p>
+          <p class="body-sm" style="margin-bottom:.7rem">Chaves Pix de cobrança — cada uma pode ser vinculada a um motorista na aba <strong>Motoristas</strong>. O juros de atraso já entra no Pix.</p>
           <div id="cobr-methods"></div>
-          <button type="button" class="btn btn-glass btn-sm" id="add-method" style="margin:.2rem 0 1.2rem">${icon('plus')} Adicionar método de cobrança</button>
+          <button type="button" class="btn btn-glass btn-sm" id="add-method">${icon('plus')} Adicionar chave</button>
 
-          <div class="eyebrow" style="margin:.2rem 0 .5rem">Juros por dia de atraso</div>
-          <p class="body-sm" style="margin-bottom:.8rem">O valor de atraso por dia pode variar conforme a <strong>marca do veículo</strong>. Defina um valor padrão e, se quiser, exceções por marca (ex.: BYD).</p>
-          <div class="form-grid">
-            <div class="field"><label>Valor padrão por dia — outras marcas (R$)</label><input class="input" type="number" step="0.01" min="0" id="late-default" value="${cfg.late_fee_per_day}" placeholder="25,00"></div>
+          <div class="cobr-split">
+            <div>
+              <div class="eyebrow" style="margin:0 0 .4rem">Juros por dia de atraso</div>
+              <div class="field" style="margin:0"><label>Padrão — outras marcas (R$/dia)</label><input class="input" type="number" step="0.01" min="0" id="late-default" value="${cfg.late_fee_per_day}" placeholder="25,00"></div>
+            </div>
+            <div>
+              <div class="eyebrow" style="margin:0 0 .4rem">Exceções por marca (ex.: BYD)</div>
+              <div id="late-brands"></div>
+              <button type="button" class="btn btn-glass btn-sm" id="add-brand-fee">${icon('plus')} Valor por marca</button>
+            </div>
           </div>
-          <div id="late-brands"></div>
-          <button type="button" class="btn btn-glass btn-sm" id="add-brand-fee" style="margin:.2rem 0 1.2rem">${icon('plus')} Adicionar valor por marca</button>
-          <div><button class="btn btn-blue" id="save-cobr">${icon('check')} Salvar método de cobrança</button></div>
+          <div style="margin-top:1rem"><button class="btn btn-blue" id="save-cobr">${icon('check')} Salvar</button></div>
         </div>
         <div class="panel glass">
           <div class="panel-head panel-head-wrap"><span class="panel-ico">${icon('payments')}</span><h3>Todos os recebimentos</h3>

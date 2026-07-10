@@ -135,7 +135,7 @@ export async function renderCliente(root, user, onLogout) {
         <div class="ph-date">${icon('calendar')} ${fmt.weekday(p.due_date)}, ${fmt.date(p.due_date)} · ${quando}</div>
         <div style="margin-top:1.1rem;display:flex;gap:.6rem;flex-wrap:wrap">
           <button class="btn btn-sm" data-pay="${p.id}" style="background:#fff;color:var(--blue);font-weight:700">${icon('pix')} Pagar com Pix</button>
-          <a class="btn btn-glass btn-sm" href="https://wa.me/${CONFIG.EMPRESA.whatsapp}" target="_blank" rel="noopener" style="background:rgba(255,255,255,.85)">${icon('whatsapp')} WhatsApp</a>
+          <a class="btn btn-sm" href="https://wa.me/${CONFIG.EMPRESA.whatsapp}" target="_blank" rel="noopener" style="background:var(--green);color:#fff;font-weight:700">${icon('whatsapp')} WhatsApp</a>
         </div>
       </div>`;
   }
@@ -313,6 +313,13 @@ export async function renderCliente(root, user, onLogout) {
     if (!vehicle) { shell.content.innerHTML = `<div class="panel glass"><div class="empty">${icon('car', 'empty-ico')}<p>Nenhum veículo vinculado à sua conta.</p></div></div>`; return; }
     const documents = await api.listDocuments({ vehicle_id: vehicle.id });
     const trocaDisponivel = (await api.listVehicles({ status: 'disponivel' })).length > 0;
+    // intervalo de revisão conforme a marca
+    const revLabel = /byd/i.test(vehicle.brand || '') ? 'Após 20.000 km' : 'Após 10.000 km';
+    // revisões já feitas (revisão do veículo concluída)
+    const maints = await api.listMaintenances({ vehicle_id: vehicle.id });
+    const revisoes = maints
+      .filter((m) => m.status === 'concluida' && (m.category === 'completa' || /revis/i.test(m.type || '')))
+      .sort((a, b) => (b.done_date || b.scheduled_date || '').localeCompare(a.done_date || a.scheduled_date || ''));
 
     shell.content.innerHTML = `
       <div class="fade-in">
@@ -329,7 +336,7 @@ export async function renderCliente(root, user, onLogout) {
               <div class="info-row"><span class="k">Cor</span><span class="v">${escapeHtml(vehicle.color)}</span></div>
               <div class="info-row"><span class="k">KM atual</span><span class="v">${fmt.km(vehicle.km)}</span></div>
               <div class="info-row"><span class="k">Renavam</span><span class="v">${escapeHtml(vehicle.renavam || '—')}</span></div>
-              <div class="info-row"><span class="k">Próxima revisão</span><span class="v">${fmt.date(vehicle.next_revision)}</span></div>
+              <div class="info-row"><span class="k">Próxima revisão</span><span class="v">${revLabel}</span></div>
               <div class="info-row"><span class="k">Valor semanal</span><span class="v text-blue">${fmt.money(vehicle.weekly_value)}</span></div>
             </div>
           </div>
@@ -343,6 +350,16 @@ export async function renderCliente(root, user, onLogout) {
                   <div class="f-meta"><div class="f-name">${escapeHtml(d.title)}</div><div class="f-sub">${escapeHtml(d.type)}</div></div>
                   <button class="icon-btn" title="Abrir" data-open="${d.id}">${icon('download')}</button>
                 </div>`).join('') : `<div class="empty">${icon('info', 'empty-ico')}<p>Nenhum documento disponibilizado ainda.</p></div>`}
+            </div>
+
+            <div class="panel glass">
+              <div class="panel-head"><span class="panel-ico">${icon('check')}</span><h3>Revisões feitas</h3></div>
+              ${revisoes.length ? revisoes.map((m) => `
+                <div class="file-row">
+                  <div class="file-ico blue">${icon('wrench')}</div>
+                  <div class="f-meta"><div class="f-name">${escapeHtml(m.type || 'Revisão do veículo')}</div>
+                    <div class="f-sub">Feita em ${fmt.date(m.done_date || m.scheduled_date)}${m.km ? ' · ' + fmt.km(m.km) : ''}</div></div>
+                </div>`).join('') : `<div class="empty">${icon('info', 'empty-ico')}<p>Nenhuma revisão feita ainda.</p></div>`}
             </div>
 
             <div class="panel glass">
@@ -384,7 +401,7 @@ export async function renderCliente(root, user, onLogout) {
           <div class="panel glass">
             <div class="panel-head"><span class="panel-ico">${icon('wrench')}</span><h3>Solicitar manutenção</h3></div>
             <p class="body-sm" style="margin-bottom:1.1rem">Escolha o tipo de solicitação abaixo e anexe as fotos pedidas. A empresa recebe o pedido na hora.</p>
-            <button class="btn btn-blue btn-block" id="req-completa">${icon('wrench')} Manutenção completa</button>
+            <button class="btn btn-blue btn-block" id="req-completa">${icon('wrench')} Revisão do veículo</button>
             <button class="btn btn-ghost btn-block" id="req-desgaste" style="margin-top:.7rem">${icon('alert')} Relatar desgaste</button>
             <div class="info-list" style="margin-top:1.3rem">
               <div class="info-row"><span class="k">Veículo</span><span class="v">${escapeHtml(vehicle.brand + ' ' + vehicle.model)}</span></div>
@@ -429,13 +446,15 @@ export async function renderCliente(root, user, onLogout) {
         <div class="upload-mini" data-drop="${u.id}">${icon('camera')} Toque para tirar / enviar a foto</div>
         <input type="file" data-file="${u.id}" accept="image/*" capture="environment" hidden></div>`;
     const m = modal({
-      title: isDesg ? 'Relatar desgaste' : 'Manutenção completa', icon: 'wrench',
+      title: isDesg ? 'Relatar desgaste' : 'Revisão do veículo', icon: 'wrench',
       body: `
         <form id="f-maint">
           ${isDesg ? `<div class="field"><label>Tipo de desgaste</label>
             <select class="select" name="wear_type">
               <option value="pneus">Desgaste de pneus</option>
               <option value="pastilha">Pastilha de freio</option>
+              <option value="polimento">Polimento</option>
+              <option value="lanternagem">Lanternagem</option>
               <option value="outros">Outros</option>
             </select></div>` : ''}
           <div class="field"><label>Quilometragem atual (km)</label><input class="input" type="number" name="km" placeholder="Ex.: 31500" required></div>
@@ -458,15 +477,15 @@ export async function renderCliente(root, user, onLogout) {
       ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('drag'); }));
       drop.addEventListener('drop', (e) => { if (e.dataTransfer.files[0]) set(e.dataTransfer.files[0]); });
     });
-    // "Outros" → o campo vira "Descrição" e passa a ser obrigatório
+    // No desgaste a observação é sempre obrigatória
     const wearSel = m.overlay.querySelector('[name="wear_type"]');
     const descLabel = m.overlay.querySelector('#desc-label');
     const descField = m.overlay.querySelector('[name="description"]');
     const syncDesc = () => {
-      const outros = wearSel && wearSel.value === 'outros';
-      descLabel.textContent = outros ? 'Descrição' : 'Observação (opcional)';
-      descField.required = !!outros;
-      descField.placeholder = outros ? 'Descreva o problema (obrigatório)' : 'Descreva o problema, se houver';
+      const req = isDesg; // relatar desgaste → observação obrigatória
+      descLabel.textContent = req ? 'Observação (obrigatória)' : 'Observação (opcional)';
+      descField.required = req;
+      descField.placeholder = req ? 'Descreva o desgaste (obrigatório)' : 'Descreva o problema, se houver';
     };
     if (wearSel) { wearSel.onchange = syncDesc; syncDesc(); }
     m.overlay.querySelector('[data-cancel]').onclick = m.close;
