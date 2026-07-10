@@ -575,6 +575,7 @@ html { overflow-x: hidden; }
 .chat-msg.me .chat-quote span { color: rgba(255,255,255,0.88); }
 
 .chat-replybar { display: flex; align-items: center; gap: 0.6rem; margin: 0 1rem; padding: 0.5rem 0.7rem; background: var(--blue-pale); border: 1px solid rgba(37,99,235,0.18); border-bottom: none; border-radius: var(--radius-sm) var(--radius-sm) 0 0; animation: chatIn 0.2s var(--ease-smooth); }
+.chat-replybar[hidden] { display: none; }   /* o display:flex acima anulava o atributo hidden → caixa azul vazia sobre o input */
 .chat-replybar .rb-line { align-self: stretch; width: 3px; border-radius: 3px; background: var(--blue); flex-shrink: 0; }
 .chat-replybar .rb-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .chat-replybar .rb-body b { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; color: var(--blue); }
