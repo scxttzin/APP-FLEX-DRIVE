@@ -16,5 +16,24 @@
     <div class="loading-screen"><div class="spinner"></div></div>
   </div>
   <script type="module" src="js/app.js"></script>
+  <script>
+    /* Versionamento automático: service worker network-first mantém o app sempre atualizado. */
+    if ('serviceWorker' in navigator) {
+      const hadController = !!navigator.serviceWorker.controller;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        // quando um SW novo assume o controle (deploy novo), recarrega uma vez p/ pegar a versão atual
+        if (!hadController || window.__swReloaded) return;
+        window.__swReloaded = true;
+        location.reload();
+      });
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').then((reg) => {
+          // procura atualização assim que abre e periodicamente
+          reg.update();
+          setInterval(() => reg.update(), 60 * 60 * 1000);
+        }).catch(() => {});
+      });
+    }
+  </script>
 </body>
 </html>
