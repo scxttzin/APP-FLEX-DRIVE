@@ -784,9 +784,13 @@ export async function renderCliente(root, user, onLogout) {
       }
     }
 
-    // Saudação + sugestões iniciais
-    addMsg('bot', CONFIG.CHATBOT?.saudacao || 'Olá! Como posso ajudar?');
-    history.push({ role: 'assistant', content: CONFIG.CHATBOT?.saudacao || 'Olá! Como posso ajudar?' });
+    // Saudação (em duas mensagens, mais leve) + sugestões iniciais
+    const saud1 = CONFIG.CHATBOT?.saudacao || 'Olá! 👋';
+    const saud2 = CONFIG.CHATBOT?.saudacao2 || 'Como posso ajudar?';
+    addMsg('bot', saud1);
+    history.push({ role: 'assistant', content: saud1 });
+    addMsg('bot', saud2);
+    history.push({ role: 'assistant', content: saud2 });
     addChips(['Qual meu próximo pagamento?', 'Como faço para pagar?', 'Meu contrato', 'Manutenção'], (label) => send(label));
     scheduleClose();   // relógio de inatividade começa já na abertura
     scheduleNudge();

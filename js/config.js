@@ -36,7 +36,8 @@ export const CONFIG = {
   CHATBOT: {
     nome: 'Flex App',
     papel: 'Assistente virtual',
-    saudacao: 'Oi! 👋 Eu sou o Flex App, o assistente virtual da Flex Drive. Pode me perguntar o que quiser sobre pagamentos, contrato, seu veículo, manutenção, documentos ou a empresa — respondo aqui mesmo. Como posso ajudar?',
+    saudacao: 'Oi! 👋 Eu sou o Flex App, o assistente virtual da Flex Drive.',
+    saudacao2: 'Pode me perguntar o que quiser sobre pagamentos, contrato, veículo, manutenção ou documentos. Como posso ajudar? 😊',
 
     // usarIA=false → o chat roda 100% no assistente LOCAL (dentro do navegador,
     // sem custo, sem servidor). É o modo recomendado para não pagar pela IA.
