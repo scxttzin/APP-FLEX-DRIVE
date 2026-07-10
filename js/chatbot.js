@@ -54,7 +54,8 @@ export function buildDriverContext({ user, vehicle, payments, contract }) {
    ──────────────────────────────────────────────────────────── */
 const norm = (s) => String(s || '')
   .toLowerCase()
-  .normalize('NFD').replace(/[̀-ͯ]/g, '');   // remove acentos
+  .normalize('NFD').replace(/[̀-ͯ]/g, '')    // remove acentos
+  .replace(/veiculo/g, 'carro');             // "carro" e "veículo" são tratados como a mesma palavra
 
 // O motorista tem carro elétrico? (muda respostas de recarga, manutenção e seguro)
 const isEletrico = (ctx) => /byd|eletric|dolphin/.test(norm((ctx?.veiculo?.modelo || '')));
