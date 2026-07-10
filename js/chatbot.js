@@ -76,18 +76,18 @@ const INTENCOES = [
         const p = ctx.proximoPagamento;
         const atras = p.situacao === 'atrasado';
         return {
-          text: `Seu próximo pagamento é de ${p.valor}, com vencimento em ${p.vencimento}${atras ? ' — e está em atraso ⚠️. Recomendo regularizar o quanto antes.' : '.'} Você paga direto pela aba "Pagamentos".`,
+          text: `É ${p.valor}, dia ${p.vencimento}${atras ? ' — e tá atrasadinho, tenta acertar quando puder 🙏' : '.'} Você paga na aba "Pagamentos".`,
           chips: ['Como pago?', 'Enviar comprovante'],
         };
       }
-      return { text: 'Você não tem pagamentos pendentes no momento. ✅ Tudo em dia por aqui!' };
+      return { text: 'Tá tudo em dia, nada pendente por aqui! ✅' };
     },
   },
   {
     id: 'como_pagar',
     kw: ['como pago', 'como pagar', 'pagar', 'forma de pagamento', 'pix', 'qr code', 'qr', 'copia e cola', 'chave pix', 'boleto', 'quando pago', 'dia do pagamento', 'que dia', 'sexta', 'sexta-feira', 'semanal', 'toda semana'],
     resp: () => ({
-      text: 'O pagamento é semanal, feito por Pix — pelo contrato, o vencimento é toda sexta-feira. Vá na aba "Pagamentos": lá tem o Pix copia-e-cola e o QR Code para pagar em segundos. Depois é só enviar o comprovante. 💳',
+      text: 'É rapidinho: na aba "Pagamentos" tem o Pix (copia-e-cola ou QR). Você paga e anexa o comprovante ali mesmo. 💳',
       chips: ['Enviar comprovante', 'Qual meu próximo pagamento?'],
     }),
   },
@@ -102,7 +102,7 @@ const INTENCOES = [
     id: 'atraso',
     kw: ['atraso', 'atrasado', 'atrasei', 'posso atrasar', 'atrasar', 'juros', 'negociar', 'parcelar', 'divida', 'dívida', 'mora', 'multa de atraso', 'correcao', 'correção'],
     resp: (ctx) => ({
-      text: `${ctx.pagamentosAtrasados ? 'Vi que há pagamento em atraso. ' : ''}O ideal é manter tudo em dia (aba "Pagamentos"). Pelo contrato, o atraso no pagamento semanal gera multa de mora e juros de 1% ao mês${isEletrico(ctx) ? ' (no contrato do elétrico, a multa é de 10%)' : ' (multa de mora conforme seu contrato)'}, além de correção — e o Pix gerado no app já vem com o valor de atraso embutido. Acúmulo de pendências pode levar à revisão/rescisão do contrato. Para negociar prazo ou valores, posso te encaminhar para a equipe.`,
+      text: `${ctx.pagamentosAtrasados ? 'Vi que tem um pagamento atrasado aí. ' : ''}Acontece! O ideal é acertar o quanto antes pela aba "Pagamentos" — o atraso vai gerando um acréscimo por dia. Se precisar de um prazo, me fala que eu chamo alguém do time. 🙏`,
       chips: ['Meu próximo pagamento', 'Falar com atendente'],
     }),
   },
@@ -110,14 +110,14 @@ const INTENCOES = [
     id: 'contrato',
     kw: ['contrato', 'assinado', 'vigencia', 'vigência', 'renovar', 'renovacao', 'renovação', 'validade', 'prazo do contrato', 'quanto tempo', 'duracao', 'duração'],
     resp: (ctx) => ({
-      text: `Seu contrato assinado fica na aba "Seu contrato" — dá para abrir e baixar por lá.${ctx.contrato ? ` Situação atual: ${ctx.contrato.situacao}${ctx.contrato.vigencia ? ` (${ctx.contrato.vigencia})` : ''}.` : ''} A locação é por prazo determinado e pode ser renovada por acordo entre as partes (a renovação também é solicitada nessa aba). Ao final, o veículo deve ser devolvido no mesmo estado em que foi recebido. 📄`,
+      text: `Seu contrato fica na aba "Seu contrato" — dá pra abrir e baixar por lá.${ctx.contrato ? ` Ele está ${ctx.contrato.situacao}${ctx.contrato.vigencia ? ` (${ctx.contrato.vigencia})` : ''}.` : ''} Precisa renovar? Também é por ali. 📄`,
     }),
   },
   {
     id: 'uso_permitido',
     kw: ['posso usar', 'uso do carro', 'para que posso usar', 'uso particular', 'uso pessoal', 'viajar', 'viagem', 'sair de brasilia', 'sair do df', 'fora do df', 'fora de brasilia', 'entorno', 'outro estado', 'outra cidade', 'goias', 'uber', '99', 'aplicativo', 'passageiros', 'levar familia', 'uso proprio'],
     resp: () => ({
-      text: 'O veículo é para uso profissional em transporte de passageiros por aplicativos (Uber, 99 e similares). Pelo contrato, é proibido usar para outra finalidade, permitir que terceiros não autorizados dirijam, e circular além do Distrito Federal e entorno — o descumprimento gera multa e pode levar à rescisão do contrato. Se precisar de uma exceção (ex.: uma viagem), fale com a equipe antes. 🚗',
+      text: 'O carro é pra você trabalhar nos apps (Uber, 99 e afins), aqui no DF e entorno. Emprestar pra outra pessoa ou viajar pra fora não rola sem combinar antes. Se precisar de uma exceção, me fala que eu vejo com o time. 🚗',
       chips: ['Falar com atendente'],
     }),
   },
@@ -126,15 +126,15 @@ const INTENCOES = [
     kw: ['lugar de minha preferencia', 'lugar de minha preferência', 'local de minha preferencia', 'minha oficina', 'oficina propria', 'oficina própria', 'oficina de confianca', 'oficina de confiança', 'mecanico de confianca', 'onde eu quiser', 'outro lugar', 'outro local', 'levar em outro', 'local proprio', 'consertar por conta', 'posso escolher a oficina', 'qualquer oficina', 'levar em qualquer', 'qualquer lugar', 'qualquer mecanico'],
     resp: (ctx) => ({
       text: isEletrico(ctx)
-        ? 'Não. Por ser um veículo elétrico BYD, a manutenção precisa ser feita obrigatoriamente em concessionária ou oficina autorizada BYD, para preservar a garantia de fábrica. Não leve a qualquer outro local por conta própria — solicite pela aba "Manutenção" que a empresa agenda. 🔧⚡'
-        : 'Não. Reparos e manutenções são feitos apenas em local aprovado pela empresa (oficina de confiança do locador). Levar o veículo para outro lugar por conta própria pode gerar multa e rescisão. Quando precisar, solicite pela aba "Manutenção" que a empresa indica o local. 🔧',
+        ? 'Melhor não. Como é um BYD elétrico, a manutenção precisa ser na autorizada BYD pra não perder a garantia. É só pedir pela aba "Manutenção" que a gente agenda. 🔧'
+        : 'Melhor não levar por conta própria — a manutenção a gente faz numa oficina combinada. Pede pela aba "Manutenção" que resolvemos rapidinho. 🔧',
     }),
   },
   {
     id: 'compartilhar',
     kw: ['compartilhar', 'compartilho', 'compartilhamento', 'emprestar', 'emprestar o carro', 'outra pessoa dirigir', 'alguem dirigir', 'alguém dirigir', 'dividir o carro', 'sublocar', 'repassar o carro', 'outro motorista dirigir'],
     resp: () => ({
-      text: 'Se não foi previamente acordado em contrato com a empresa, é totalmente proibido compartilhar o veículo. O carro é de sua responsabilidade — repassar a terceiros pode gerar multa e rescisão contratual. Se precisar dessa possibilidade, fale com a equipe para avaliar. 🚫',
+      text: 'O carro é sua responsabilidade, então não dá pra emprestar ou passar pra outra pessoa sem combinar antes com a gente. Se você precisa disso, me fala que eu vejo o que dá pra fazer. 🙂',
     }),
   },
   {
@@ -142,8 +142,8 @@ const INTENCOES = [
     kw: ['manutencao', 'manutenção', 'revisao', 'revisão', 'quebrou', 'quebrado', 'defeito', 'problema', 'nao liga', 'não liga', 'nao pega', 'não pega', 'motor', 'barulho', 'pneu', 'freio', 'farol', 'luz do painel', 'vazamento', 'superaquec', 'oleo', 'óleo', 'consertar', 'conserto', 'quem paga a manutencao', 'de quem e a manutencao', 'troca de oleo', 'quantos km', 'a cada quantos'],
     resp: (ctx) => ({
       text: isEletrico(ctx)
-        ? 'Para manutenção, use a aba "Manutenção" do app — você solicita e a empresa agenda. No elétrico BYD, a manutenção preventiva/corretiva é responsabilidade da empresa e feita em concessionária/oficina autorizada BYD. Você deve seguir os intervalos de revisão do fabricante e cuidar da bateria de tração, do sistema de recarga, pneus e da frenagem regenerativa. Se o carro parar, me avise que passo para a equipe. 🔧⚡'
-        : 'Para manutenção, use a aba "Manutenção" do app — você solicita e a empresa cuida do agendamento em oficina de confiança do locador. Pelo contrato do carro a combustão, o custo da manutenção preventiva/corretiva é dividido igualmente (50/50) entre você e a empresa, e a revisão é obrigatória a cada 10.000 km. Se for emergência (carro parado), me avise que já te passo para a equipe. 🔧',
+        ? 'É só pedir pela aba "Manutenção" que a empresa agenda numa autorizada BYD. Se o carro parou, me avisa que já chamo o time. 🔧'
+        : 'É só pedir pela aba "Manutenção" que a gente cuida do agendamento. Se for urgente (carro parado), me avisa que passo pra equipe na hora. 🔧',
       chips: ['É urgente', 'Como solicito?'],
     }),
   },
@@ -181,7 +181,7 @@ const INTENCOES = [
     id: 'seguro',
     kw: ['seguro', 'sinistro', 'cobertura', 'franquia', 'segurado', 'proteção', 'protecao', 'assistencia 24h', 'assistência', 'roubaram o carro', 'furtaram'],
     resp: (ctx) => ({
-      text: `O veículo tem seguro total (danos, furto e roubo) mantido pela empresa. Mesmo assim, pelo contrato você é responsável pelo veículo durante toda a locação (da retirada até a devolução). Em caso de sinistro, você pode: (1) pagar a franquia integral para a seguradora consertar${isEletrico(ctx) ? ' em concessionária/oficina autorizada BYD' : ''}; ou (2) arcar com o reparo em oficina aprovada pela empresa. Também há os lucros cessantes pelo tempo que o carro ficar parado. Se acabou de acontecer algo, me avise que passo para a equipe agora.`,
+      text: 'O carro tem seguro, mas enquanto ele está com você, você responde pelos danos, furto ou roubo. Se aconteceu alguma coisa, o melhor é me avisar agora que eu já te coloco em contato com o time pra resolver. 🙏',
       chips: ['Tive um acidente', 'Falar com atendente'],
     }),
   },
@@ -189,7 +189,7 @@ const INTENCOES = [
     id: 'multa',
     kw: ['multa de transito', 'multa', 'infracao', 'infração', 'radar', 'multado', 'ponto na cnh', 'notificacao de transito', 'notificação', 'ipva', 'licenciamento', 'seguro obrigatorio', 'dpvat', 'quem paga a multa', 'condutor'],
     resp: () => ({
-      text: 'Multas de trânsito e encargos ligados ao uso são de responsabilidade do motorista (quem estava dirigindo). Já IPVA, seguro obrigatório e licenciamento anual ficam com a empresa. Atenção: acumular 3 multas de trânsito vencidas sem pagamento pode rescindir o contrato automaticamente. Recebeu uma notificação? Me avise que encaminho para a equipe tratar a indicação do condutor. 📄',
+      text: 'As multas de trânsito ficam com quem estava dirigindo (você). Já IPVA e licenciamento são com a empresa. Recebeu uma notificação? Me manda que eu encaminho pro time cuidar da indicação do condutor. 📄',
       escalate: true,
     }),
   },
@@ -198,15 +198,15 @@ const INTENCOES = [
     kw: ['gasolina', 'combustivel', 'combustível', 'tanque', 'abastec', 'etanol', 'alcool', 'álcool', 'recarga', 'recarregar', 'recarrego', 'carregar', 'eletrico', 'elétrico', 'autonomia', 'ponto de recarga', 'eletroposto', 'estacao de recarga', 'onde carrego', 'onde recarrego', 'bateria', 'carregar o carro'],
     resp: (ctx) => ({
       text: isEletrico(ctx)
-        ? 'A recarga fica por sua conta no dia a dia. Você tem liberdade para recarregar em qualquer ponto público ou privado — não é obrigatório usar o Eletroposto Flex Drive, mas, quando ele estiver disponível, locatários têm desconto especial na recarga. Importante: evite carregadores não certificados / fora das especificações da BYD. 🔌'
-        : 'O abastecimento fica por conta do motorista durante o uso do carro — você abastece no dia a dia normalmente. ⛽',
+        ? 'A recarga fica por sua conta e você pode carregar onde preferir. Quando o Eletroposto Flex Drive estiver rolando, você ainda tem desconto. 🔌'
+        : 'O abastecimento fica por sua conta, você abastece normalmente no dia a dia. ⛽',
     }),
   },
   {
     id: 'recarga_wallbox',
     kw: ['wallbox', 'wall box', 'carregador', 'carregador residencial', 'carregador em casa', 'instalar carregador', 'estacao em casa', 'comodato', 'carregador de parede'],
     resp: () => ({
-      text: 'O carregador Wallbox é cedido em comodato (empréstimo gratuito) só para recarregar o seu elétrico. A cessão é gratuita, mas a instalação e os custos elétricos são por sua conta — precisa de eletricista habilitado, seguindo as normas (NBR 5410). Você é responsável pela guarda e conservação; em caso de dano, furto ou perda, há ressarcimento. Na devolução (com atraso há multa por dia), você desinstala por sua conta; ao final do prazo, também é possível comprar o equipamento por R$2.500. Dúvidas de instalação, fale com a equipe. 🔌🏠',
+      text: 'O Wallbox é aquele carregador que a gente empresta pra você carregar em casa, sem custo pela cessão. A instalação (com um eletricista) fica por sua conta, e ele fica sob sua responsabilidade enquanto estiver com você. Qualquer dúvida de instalação, me fala que eu chamo o time. 🔌🏠',
       chips: ['Falar com atendente'],
     }),
   },
@@ -214,14 +214,14 @@ const INTENCOES = [
     id: 'multimidia',
     kw: ['multimidia', 'multimídia', 'central multimidia', 'tela do carro', 'na tela', 'tela multimidia', 'desbloquear', 'firmware', 'root', 'modificar o sistema', 'instalar aplicativo', 'instalar um app', 'instalar app', 'app na tela', 'software do carro', 'sistema do carro', 'atualizar o carro'],
     resp: () => ({
-      text: 'No elétrico BYD é proibido descaracterizar, desbloquear, modificar, alterar o firmware ou instalar softwares não homologados no sistema multimídia — isso faz o carro perder a garantia de fábrica. O descumprimento pode rescindir o contrato de imediato, com multa de R$2.000,00 e ressarcimento dos prejuízos. Precisa de algo na central? Solicite pela aba "Manutenção". ⚠️',
+      text: 'Melhor não mexer no sistema da multimídia (desbloquear, instalar coisas, mudar firmware) — isso faz o carro perder a garantia. Se precisar de algo na central, pede pela aba "Manutenção" que a gente ajuda. 🙂',
     }),
   },
   {
     id: 'danos',
     kw: ['bati', 'bater', 'batida', 'danifiquei', 'risquei', 'risco no carro', 'amassei', 'amassado', 'estraguei', 'estragou', 'perda total', 'avaria', 'avariei', 'danos no carro', 'quem paga o conserto', 'quem paga o reparo', 'colidi', 'colisao', 'raspei', 'se eu bater'],
     resp: (ctx) => ({
-      text: `Pelo contrato, você assume a responsabilidade por danos, avarias, furto ou roubo do veículo durante toda a locação — inclusive por caso fortuito ou força maior. Em caso de dano, você arca com o reparo (ou, em perda total, com o valor de mercado/FIPE do carro) e ainda com os lucros cessantes pelo tempo que o carro ficar parado. Havendo seguro, você paga a franquia para o conserto${isEletrico(ctx) ? ' — e no elétrico isso inclui danos à bateria de tração e ao sistema elétrico de alta tensão' : ''}. Se acabou de acontecer, me avise que já passo para a equipe.`,
+      text: 'Enquanto o carro está com você, os danos ficam sob sua responsabilidade. Se bateu ou aconteceu algo, o melhor é me avisar agora que eu já te coloco em contato com o time pra resolver o conserto. 🙏',
       chips: ['Tive um acidente', 'Falar com atendente'],
     }),
   },
@@ -229,14 +229,14 @@ const INTENCOES = [
     id: 'caucao',
     kw: ['caucao', 'caução', 'a caucao', 'de caucao', 'minha caucao', 'calcao', 'deposito', 'depósito', 'garantia em caucao', 'valor de garantia', 'valor de entrada', 'devolve o deposito', 'recebo a caucao de volta'],
     resp: () => ({
-      text: 'No início da locação é dada uma caução (garantia) — o valor está no seu contrato (por exemplo, R$1.600 no plano a combustão e R$2.200 no elétrico). Ela serve de garantia e é restituída quando você devolve o veículo nas condições contratadas; o saldo (descontado o que houver) é apurado em até 40 dias. 💰',
+      text: 'A caução é uma garantia que fica com a gente no começo e volta pra você quando devolve o carro certinho, descontado o que houver. Quer que eu confirme o seu valor com o time? 💰',
     }),
   },
   {
     id: 'devolucao',
     kw: ['devolver o carro', 'devolucao', 'devolução', 'entregar o carro', 'fim do contrato', 'termino do contrato', 'atraso na devolucao', 'devolver atrasado', 'devolver depois', 'atrasar a devolucao', 'devolver', 'estado do carro', 'como devolvo', 'onde devolvo'],
     resp: (ctx) => ({
-      text: `Na devolução, o veículo deve ser entregue no mesmo estado em que foi recebido (conforme o laudo de vistoria da entrega). Atenção ao prazo: devolver depois da data combinada gera multa por dia de atraso — ${isEletrico(ctx) ? 'no elétrico, cerca de R$250 por dia' : 'no carro a combustão, cerca de R$150 por dia'}, conforme o seu contrato. Para combinar data e local da devolução, fale com a equipe. 🚗`,
+      text: 'Na hora de devolver, é só entregar o carro no mesmo estado que recebeu. Combina a data com a gente pra não ter atraso (que gera cobrança por dia). Quer que eu te ajude a agendar? 🚗',
       chips: ['Falar com atendente'],
     }),
   },
@@ -244,14 +244,14 @@ const INTENCOES = [
     id: 'vistoria',
     kw: ['vistoria', 'video chamada', 'videochamada', 'chamada de video', 'verificacao semanal', 'inspecao', 'inspeção', 'mostrar o carro', 'apresentar o carro', 'checagem do carro'],
     resp: () => ({
-      text: 'Uma vez por semana é feita uma chamada de vídeo entre você e a empresa para verificar a integridade e a conservação do carro, em dia e horário combinados. Além disso, você deve apresentar o veículo para vistoria sempre que solicitado. Recusar essa verificação é considerado descumprimento do contrato e pode levar à rescisão. 📹',
+      text: 'Toda semana a gente faz uma chamada de vídeo rapidinha só pra ver como o carro tá — nada demais. Só é importante não deixar de participar quando a gente combinar. 📹',
     }),
   },
   {
     id: 'rescisao',
     kw: ['rescisao', 'rescisão', 'rescindir', 'cancelar contrato', 'cancelar o contrato', 'cancelar meu contrato', 'como cancelo', 'cancelo meu contrato', 'encerrar', 'encerrar o contrato', 'encerrar contrato', 'sair do contrato', 'quero cancelar', 'desistir', 'terminar o contrato', 'quero devolver e sair', 'parar de alugar'],
     resp: () => ({
-      text: 'O contrato pode ser encerrado por qualquer das partes com aviso prévio de 15 dias, devolvendo o carro no estado em que foi recebido. O descumprimento de cláusulas pode gerar rescisão imediata e multa. Você pode iniciar pelo botão "Encerrar Contrato" na aba "Seu contrato" — quer que eu te encaminhe para a equipe combinar os detalhes?',
+      text: 'Sem problema, dá pra encerrar sim — normalmente com um aviso de alguns dias e devolvendo o carro como recebeu. Você pode começar pelo botão "Encerrar Contrato" na aba "Seu contrato". Quer que eu chame o time pra combinar os detalhes?',
       escalate: true,
     }),
   },
