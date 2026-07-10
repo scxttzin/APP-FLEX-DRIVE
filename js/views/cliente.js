@@ -135,7 +135,7 @@ export async function renderCliente(root, user, onLogout) {
         <div class="ph-date">${icon('calendar')} ${fmt.weekday(p.due_date)}, ${fmt.date(p.due_date)} · ${quando}</div>
         <div style="margin-top:1.1rem;display:flex;gap:.6rem;flex-wrap:wrap">
           <button class="btn btn-sm" data-pay="${p.id}" style="background:#fff;color:var(--blue);font-weight:700">${icon('pix')} Pagar com Pix</button>
-          <a class="btn btn-sm" href="https://wa.me/${CONFIG.EMPRESA.whatsapp}" target="_blank" rel="noopener" style="background:var(--green);color:#fff;font-weight:700">${icon('whatsapp')} WhatsApp</a>
+          <a class="btn btn-glass btn-sm" href="https://wa.me/${CONFIG.EMPRESA.whatsapp}" target="_blank" rel="noopener" style="background:rgba(255,255,255,.85)">${icon('whatsapp')} WhatsApp</a>
         </div>
       </div>`;
   }
