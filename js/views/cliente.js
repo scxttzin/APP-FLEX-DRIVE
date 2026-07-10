@@ -262,15 +262,11 @@ export async function renderCliente(root, user, onLogout) {
   /* calendário com pré/próximo mês */
   function mountCalendar(mount, payments) {
     const byDate = {};
+    // Cada parcela aparece UMA vez, no seu dia de vencimento:
+    // verde quando paga (ou já enviada/em análise), vermelho se atrasada, azul se a vencer.
     payments.forEach((p) => {
       const st = paymentStatus(p);
-      if (st === 'pago' || st === 'em_analise') {
-        // marca verde no DIA em que o motorista gerou o Pix e enviou o comprovante
-        const paidDay = (p.submitted_at ? String(p.submitted_at).slice(0, 10) : null) || p.paid_date || p.due_date;
-        byDate[paidDay] = 'pago';
-      } else {
-        byDate[p.due_date] = st;   // pendente / atrasado no dia do vencimento
-      }
+      byDate[p.due_date] = (st === 'pago' || st === 'em_analise') ? 'pago' : st;
     });
     const render = () => {
       const y = calRef.getFullYear(), mo = calRef.getMonth();
