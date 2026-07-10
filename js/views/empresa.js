@@ -120,10 +120,10 @@ export async function renderEmpresa(root, user, onLogout) {
           <div class="panel glass">
             <div class="panel-head"><span class="panel-ico">${icon('payments')}</span><h3>Faturamento x Gastos</h3></div>
             ${faturamentoTotal || gastoManut || gastoSeguro ? `
-              <div class="chart-pie-wrap">
+              <div class="chart-pie-card" id="pie-card">
                 ${donutChart(pieSlices)}
-                <div class="chart-legend">
-                  ${pieSlices.map((s) => `<div class="cl-item"><span class="cl-dot" style="background:${s.color}"></span><span class="cl-lbl">${s.label}</span><span class="cl-val mono">${fmt.money(s.value)}</span></div>`).join('')}
+                <div class="chart-legend chart-legend-below">
+                  ${pieSlices.map((s, i) => `<button type="button" class="cl-item" data-i="${i}"><span class="cl-dot" style="background:${s.color}"></span><span class="cl-lbl">${s.label}</span><span class="cl-val mono">${fmt.money(s.value)}</span></button>`).join('')}
                 </div>
               </div>` : emptyBox('Sem dados de faturamento ainda.')}
           </div>
@@ -180,6 +180,28 @@ export async function renderEmpresa(root, user, onLogout) {
 
     shell.content.querySelector('#ver-pag').onclick = () => go('pagamentos');
     shell.content.querySelectorAll('[data-pay]').forEach((b) => b.onclick = () => receberPagamento(b.dataset.pay, () => go('dashboard')));
+
+    // Donut interativo: hover na fatia (ou na legenda) mostra o valor no centro
+    const pieCard = shell.content.querySelector('#pie-card');
+    if (pieCard) {
+      const svg = pieCard.querySelector('.chart-pie');
+      const clbl = svg.querySelector('.pie-center-lbl');
+      const cval = svg.querySelector('.pie-center-val');
+      const slicesEls = svg.querySelectorAll('.pie-slice');
+      const highlight = (i) => {
+        const s = pieSlices[i]; if (!s) return;
+        clbl.textContent = s.label; cval.textContent = fmt.money(s.value);
+        slicesEls.forEach((el) => { el.style.opacity = Number(el.dataset.i) === i ? '1' : '0.3'; });
+        pieCard.querySelectorAll('.cl-item').forEach((el) => el.classList.toggle('active', Number(el.dataset.i) === i));
+      };
+      const reset = () => {
+        clbl.textContent = 'Total'; cval.textContent = svg.dataset.total;
+        slicesEls.forEach((el) => { el.style.opacity = '1'; });
+        pieCard.querySelectorAll('.cl-item').forEach((el) => el.classList.remove('active'));
+      };
+      slicesEls.forEach((el) => { el.addEventListener('mouseenter', () => highlight(Number(el.dataset.i))); el.addEventListener('mouseleave', reset); });
+      pieCard.querySelectorAll('.cl-item').forEach((el) => { el.addEventListener('mouseenter', () => highlight(Number(el.dataset.i))); el.addEventListener('mouseleave', reset); });
+    }
   }
 
   /* uma linha da tabela de recebimentos */
@@ -1451,26 +1473,33 @@ export async function renderEmpresa(root, user, onLogout) {
   function emptyBox(msg) { return `<div class="empty">${icon('info', 'empty-ico')}<p>${escapeHtml(msg)}</p></div>`; }
 
   /* ── Gráficos (SVG/CSS, sem biblioteca) ── */
-  // Donut: relação entre fatias (faturamento, manutenção, seguro)
+  // Donut interativo: mostra o valor da fatia no centro ao passar o mouse
   function donutChart(slices) {
     const total = slices.reduce((s, x) => s + Number(x.value || 0), 0);
-    const R = 52, r = 30, cx = 60, cy = 60;
+    const R = 82, r = 52, cx = 95, cy = 95, size = 190;
     if (total <= 0) return '';
     const nonZero = slices.filter((s) => s.value > 0);
+    let arcs;
     if (nonZero.length === 1) {
-      return `<svg viewBox="0 0 120 120" width="120" height="120" class="chart-pie"><circle cx="${cx}" cy="${cy}" r="${(R + r) / 2}" fill="none" stroke="${nonZero[0].color}" stroke-width="${R - r}"></circle></svg>`;
+      const i = slices.indexOf(nonZero[0]);
+      arcs = `<circle class="pie-slice" data-i="${i}" cx="${cx}" cy="${cy}" r="${(R + r) / 2}" fill="none" stroke="${nonZero[0].color}" stroke-width="${R - r}"><title>${escapeHtml(nonZero[0].label)}: ${fmt.money(nonZero[0].value)}</title></circle>`;
+    } else {
+      let a0 = -Math.PI / 2;
+      arcs = slices.map((s, i) => {
+        const frac = Number(s.value || 0) / total;
+        if (frac <= 0) return '';
+        const a1 = a0 + frac * 2 * Math.PI; const large = frac > 0.5 ? 1 : 0;
+        const p = (rad, ang) => `${(cx + rad * Math.cos(ang)).toFixed(2)} ${(cy + rad * Math.sin(ang)).toFixed(2)}`;
+        const d = `M${p(R, a0)} A${R} ${R} 0 ${large} 1 ${p(R, a1)} L${p(r, a1)} A${r} ${r} 0 ${large} 0 ${p(r, a0)} Z`;
+        a0 = a1;
+        return `<path class="pie-slice" data-i="${i}" d="${d}" fill="${s.color}"><title>${escapeHtml(s.label)}: ${fmt.money(s.value)}</title></path>`;
+      }).join('');
     }
-    let a0 = -Math.PI / 2;
-    const arcs = slices.map((s) => {
-      const frac = Number(s.value || 0) / total;
-      if (frac <= 0) return '';
-      const a1 = a0 + frac * 2 * Math.PI; const large = frac > 0.5 ? 1 : 0;
-      const p = (rad, ang) => `${(cx + rad * Math.cos(ang)).toFixed(2)} ${(cy + rad * Math.sin(ang)).toFixed(2)}`;
-      const d = `M${p(R, a0)} A${R} ${R} 0 ${large} 1 ${p(R, a1)} L${p(r, a1)} A${r} ${r} 0 ${large} 0 ${p(r, a0)} Z`;
-      a0 = a1;
-      return `<path d="${d}" fill="${s.color}"></path>`;
-    }).join('');
-    return `<svg viewBox="0 0 120 120" width="120" height="120" class="chart-pie">${arcs}</svg>`;
+    return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" class="chart-pie" data-total="${escapeHtml(fmt.money(total))}">
+      ${arcs}
+      <text x="${cx}" y="${cy - 7}" text-anchor="middle" class="pie-center-lbl">Total</text>
+      <text x="${cx}" y="${cy + 15}" text-anchor="middle" class="pie-center-val">${escapeHtml(fmt.money(total))}</text>
+    </svg>`;
   }
 
   // Torres: recebido por mês/ano
