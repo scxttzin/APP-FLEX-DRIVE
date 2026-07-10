@@ -262,7 +262,16 @@ export async function renderCliente(root, user, onLogout) {
   /* calendário com pré/próximo mês */
   function mountCalendar(mount, payments) {
     const byDate = {};
-    payments.forEach((p) => { byDate[p.due_date] = paymentStatus(p); });
+    payments.forEach((p) => {
+      const st = paymentStatus(p);
+      if (st === 'pago' || st === 'em_analise') {
+        // marca verde no DIA em que o motorista gerou o Pix e enviou o comprovante
+        const paidDay = (p.submitted_at ? String(p.submitted_at).slice(0, 10) : null) || p.paid_date || p.due_date;
+        byDate[paidDay] = 'pago';
+      } else {
+        byDate[p.due_date] = st;   // pendente / atrasado no dia do vencimento
+      }
+    });
     const render = () => {
       const y = calRef.getFullYear(), mo = calRef.getMonth();
       const first = new Date(y, mo, 1); const startDow = first.getDay();
@@ -489,6 +498,9 @@ export async function renderCliente(root, user, onLogout) {
     const active = contracts.find((c) => c.status !== 'substituido' && c.status !== 'encerrado') || contracts[0];
     const vig = vigencia(active.end_date);
     const stBadge = vig.vencido ? 'vencido' : (active.status === 'renovacao_solicitada' ? 'renovacao_solicitada' : 'vigente');
+    // Renovação só libera nos 15 dias antes do término (ou depois de vencido).
+    const diasParaFim = active.end_date ? daysFromToday(active.end_date) : null;
+    const podeRenovar = diasParaFim === null || diasParaFim <= 15;
 
     shell.content.innerHTML = `
       <div class="fade-in">
@@ -506,7 +518,9 @@ export async function renderCliente(root, user, onLogout) {
               <button class="btn btn-glass" data-open="${active.id}">${icon('download')} Abrir documento</button>
               ${active.status === 'renovacao_solicitada'
                 ? `<button class="btn btn-ghost" disabled>${icon('clock')} Renovação solicitada</button>`
-                : `<button class="btn btn-blue" data-renew="${active.id}">${icon('renew')} Solicitar renovação</button>`}
+                : (podeRenovar
+                    ? `<button class="btn btn-blue" data-renew="${active.id}">${icon('renew')} Solicitar renovação</button>`
+                    : `<button class="btn btn-glass" disabled title="A renovação fica disponível a partir de 15 dias antes do término do contrato." style="opacity:.55;cursor:not-allowed">${icon('renew')} Renovação indisponível</button>`)}
               <button class="btn btn-danger" data-encerrar>${icon('close')} Encerrar Contrato</button>
             </div>
           </div>

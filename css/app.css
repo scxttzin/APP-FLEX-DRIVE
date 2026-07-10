@@ -259,6 +259,8 @@ table.tbl td.row-actions .btn { flex-shrink: 0; }
 .veh-card:hover { transform: translateY(-4px); box-shadow: 0 12px 36px rgba(37,99,235,0.14); }
 .veh-thumb { height: 140px; background: linear-gradient(135deg, #EBF2FF, #DCE7FF); display: grid; place-items: center; position: relative; }
 .veh-thumb img { height: 92px; object-fit: contain; }
+/* foto real do veículo: mostra o carro inteiro, centralizado no fundo (proporção igual para todos) */
+.veh-thumb img.veh-photo { height: 100%; width: 100%; object-fit: contain; padding: 8px; }
 .veh-thumb .badge { position: absolute; top: 10px; right: 10px; }
 .veh-body { padding: 1rem 1.1rem 1.2rem; flex: 1; display: flex; flex-direction: column; }
 .veh-body .plate { font-family: 'Inter'; font-weight: 700; font-size: 0.78rem; letter-spacing: 0.08em; color: var(--gray-3); background: var(--off2); padding: 0.15rem 0.5rem; border-radius: 6px; display: inline-block; margin-bottom: 0.5rem; align-self: flex-start; }
@@ -395,11 +397,14 @@ table.tbl td.row-actions .btn { flex-shrink: 0; }
 .rcpt-total { font-size: 0.82rem; color: var(--gray-2); flex-shrink: 0; }
 .rcpt-group .table-wrap { padding: 0 1rem 0.8rem; }
 
+.rcpt-filter { flex: 0 1 220px; max-width: 220px; width: auto; }
+
 /* cabeçalho de painel que quebra no mobile (evita o botão sair do card) */
 @media (max-width: 560px) {
   .panel-head-wrap { flex-wrap: wrap; }
   .panel-head-wrap h3 { flex: 1 1 auto; }
   .panel-head-wrap .btn { flex: 1 1 100%; width: 100%; justify-content: center; margin-top: 0.4rem; }
+  .rcpt-filter { flex: 1 1 100%; max-width: none; margin-top: 0.4rem; }
 }
 
 /* ─── PIX (pagamento cliente) ─── */

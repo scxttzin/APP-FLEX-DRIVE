@@ -10,6 +10,22 @@ import {
 } from '../ui.js';
 
 const VEHICLE_STATUS = { locado: 'Locado', disponivel: 'Disponível', manutencao: 'Manutenção' };
+
+/* máscara de CPF: formata 000.000.000-00 conforme digita */
+function maskCPF(v) {
+  const d = String(v || '').replace(/\D/g, '').slice(0, 11);
+  if (d.length > 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+  if (d.length > 6) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
+  if (d.length > 3) return `${d.slice(0, 3)}.${d.slice(3)}`;
+  return d;
+}
+/* aplica a máscara de CPF em todos os inputs [data-cpf] de um container */
+function bindCpfMask(root) {
+  root.querySelectorAll('input[data-cpf]').forEach((i) => {
+    if (i.value) i.value = maskCPF(i.value);
+    i.addEventListener('input', () => { i.value = maskCPF(i.value); });
+  });
+}
 const WEEKDAYS = [
   { v: 1, l: 'Segunda-feira' }, { v: 2, l: 'Terça-feira' }, { v: 3, l: 'Quarta-feira' },
   { v: 4, l: 'Quinta-feira' }, { v: 5, l: 'Sexta-feira' }, { v: 6, l: 'Sábado' }, { v: 0, l: 'Domingo' },
@@ -77,7 +93,8 @@ export async function renderEmpresa(root, user, onLogout) {
     const manutAbertas = maints.filter((m) => m.status !== 'concluida');
     const taxaOcupacao = vehicles.length ? Math.round((locados / vehicles.length) * 100) : 0;
 
-    const proximos = payments.filter((p) => paymentStatus(p) !== 'pago').sort((a, b) => a.due_date.localeCompare(b.due_date)).slice(0, 6);
+    // só os recebimentos que vencem nos próximos 14 dias (inclui os já atrasados, que ainda precisam ser pagos)
+    const proximos = payments.filter((p) => paymentStatus(p) !== 'pago' && daysFromToday(p.due_date) <= 14).sort((a, b) => a.due_date.localeCompare(b.due_date));
 
     shell.content.innerHTML = `
       <div class="fade-in">
@@ -104,7 +121,7 @@ export async function renderEmpresa(root, user, onLogout) {
                     <td class="row-actions"><button class="btn btn-green btn-sm" data-pay="${p.id}">${icon('check')} Efetuado</button></td>
                   </tr>`).join('')}
               </tbody>
-            </table></div>` : emptyBox('Nenhum recebimento pendente. Tudo em dia! 🎉')}
+            </table></div>` : emptyBox('Nenhum recebimento nos próximos 14 dias. 🎉')}
         </div>
 
         <div class="grid-cols grid-2">
@@ -215,29 +232,44 @@ export async function renderEmpresa(root, user, onLogout) {
         </div>
         <div class="panel glass">
           <div class="panel-head panel-head-wrap"><span class="panel-ico">${icon('payments')}</span><h3>Todos os recebimentos</h3>
+            <select class="select rcpt-filter" id="rcpt-filter">
+              <option value="">Todos os motoristas</option>
+              ${Object.values(clientsMap).sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '')).map((c) => `<option value="${c.id}">${escapeHtml(c.full_name)}</option>`).join('')}
+            </select>
             <button class="btn btn-blue btn-sm" id="novo-plano">${icon('calendar')} Gerar Cobrança semanal</button></div>
-          ${payments.length ? groupPayments(payments).map((g, gi) => `
-            <details class="rcpt-group" ${gi === 0 ? 'open' : ''}>
-              <summary class="rcpt-sum">
-                <span class="rcpt-chev">${icon('chevR')}</span>
-                <span class="rcpt-sum-label">${escapeHtml(g.label)}</span>
-                <span class="rcpt-count">${g.rows.length}</span>
-                <span class="rcpt-total mono">${fmt.money(g.total)}</span>
-              </summary>
-              <div class="table-wrap"><table class="tbl">
-                <thead><tr><th>Motorista</th><th>Vencimento</th><th>Pago em</th><th>Forma</th><th>Valor</th><th>Status</th><th></th></tr></thead>
-                <tbody>${g.rows.map(paymentRow).join('')}</tbody>
-              </table></div>
-            </details>`).join('') : emptyBox('Nenhum pagamento lançado.')}
+          <div id="rcpt-groups"></div>
         </div>
       </div>`;
 
     setupCobranca(cfg);
     shell.content.querySelector('#novo-plano').onclick = () => formPlano(() => go('pagamentos'));
-    shell.content.querySelectorAll('[data-pay]').forEach((b) => b.onclick = () => receberPagamento(b.dataset.pay, () => go('pagamentos')));
-    shell.content.querySelectorAll('[data-receipt]').forEach((b) => b.onclick = async () => { const p = payments.find((x) => x.id === b.dataset.receipt); const url = await api.receiptUrl(p); if (url) openFile(url, p.receipt_name || 'comprovante'); else toast('Este pagamento não tem comprovante anexado pelo motorista.', 'info'); });
-    shell.content.querySelectorAll('[data-edit]').forEach((b) => b.onclick = () => formPagamento(payments.find((p) => p.id === b.dataset.edit), () => go('pagamentos')));
-    shell.content.querySelectorAll('[data-del]').forEach((b) => b.onclick = () => confirmDialog('Excluir este pagamento?', async () => { await api.deletePayment(b.dataset.del); toast('Pagamento excluído', 'ok'); go('pagamentos'); }));
+
+    // lista de recebimentos com filtro por motorista (re-renderizável)
+    const groupsBox = shell.content.querySelector('#rcpt-groups');
+    const renderGroups = (clientId) => {
+      const list = clientId ? payments.filter((p) => p.client_id === clientId) : payments;
+      groupsBox.innerHTML = list.length ? groupPayments(list).map((g, gi) => `
+        <details class="rcpt-group" ${gi === 0 ? 'open' : ''}>
+          <summary class="rcpt-sum">
+            <span class="rcpt-chev">${icon('chevR')}</span>
+            <span class="rcpt-sum-label">${escapeHtml(g.label)}</span>
+            <span class="rcpt-count">${g.rows.length}</span>
+            <span class="rcpt-total mono">${fmt.money(g.total)}</span>
+          </summary>
+          <div class="table-wrap"><table class="tbl">
+            <thead><tr><th>Motorista</th><th>Vencimento</th><th>Pago em</th><th>Forma</th><th>Valor</th><th>Status</th><th></th></tr></thead>
+            <tbody>${g.rows.map(paymentRow).join('')}</tbody>
+          </table></div>
+        </details>`).join('') : emptyBox(clientId ? 'Este motorista não tem recebimentos lançados.' : 'Nenhum pagamento lançado.');
+      // (re)liga as ações das linhas
+      groupsBox.querySelectorAll('[data-pay]').forEach((b) => b.onclick = () => receberPagamento(b.dataset.pay, () => go('pagamentos')));
+      groupsBox.querySelectorAll('[data-receipt]').forEach((b) => b.onclick = async () => { const p = payments.find((x) => x.id === b.dataset.receipt); const url = await api.receiptUrl(p); if (url) openFile(url, p.receipt_name || 'comprovante'); else toast('Este pagamento não tem comprovante anexado pelo motorista.', 'info'); });
+      groupsBox.querySelectorAll('[data-edit]').forEach((b) => b.onclick = () => formPagamento(payments.find((p) => p.id === b.dataset.edit), () => go('pagamentos')));
+      groupsBox.querySelectorAll('[data-del]').forEach((b) => b.onclick = () => confirmDialog('Excluir este pagamento?', async () => { await api.deletePayment(b.dataset.del); toast('Pagamento excluído', 'ok'); go('pagamentos'); }));
+    };
+    const filterSel = shell.content.querySelector('#rcpt-filter');
+    filterSel.onchange = () => renderGroups(filterSel.value);
+    renderGroups('');
   }
 
   /* editor dinâmico de métodos de cobrança + juros por marca */
@@ -633,7 +665,7 @@ export async function renderEmpresa(root, user, onLogout) {
     return `
       <div class="veh-card glass">
         <div class="veh-thumb">
-          <img src="${v.photo_url || 'assets/car-placeholder.png'}" alt="${escapeHtml(v.model)}" onerror="this.onerror=null;this.src='assets/car-placeholder.png'" style="${v.photo_url ? 'height:100%;width:100%;object-fit:cover' : ''}">
+          <img src="${v.photo_url || 'assets/car-placeholder.png'}" alt="${escapeHtml(v.model)}" onerror="this.onerror=null;this.src='assets/car-placeholder.png'" class="${v.photo_url ? 'veh-photo' : ''}">
           ${badge(v.status)}
         </div>
         <div class="veh-body">
@@ -866,7 +898,7 @@ export async function renderEmpresa(root, user, onLogout) {
         <form id="f-edit-mot">
           <div class="form-grid">
             <div class="field full"><label>Nome completo (nome e sobrenome)</label><input class="input" name="full_name" required value="${escapeHtml(c.full_name || '')}"></div>
-            <div class="field"><label>CPF</label><input class="input" name="cpf" value="${escapeHtml(c.cpf || '')}"></div>
+            <div class="field"><label>CPF</label><input class="input" name="cpf" data-cpf inputmode="numeric" maxlength="14" value="${escapeHtml(c.cpf || '')}"></div>
             <div class="field"><label>Telefone / WhatsApp</label><input class="input" name="phone" value="${escapeHtml(c.phone || '')}"></div>
             <div class="field"><label>Cidade</label><input class="input" name="city" value="${escapeHtml(c.city || '')}"></div>
             <div class="field"><label>E-mail (login)</label><input class="input" value="${escapeHtml(c.email || '')}" disabled title="O e-mail de login não pode ser alterado aqui"></div>
@@ -877,7 +909,7 @@ export async function renderEmpresa(root, user, onLogout) {
           <div id="edit-second-fields" style="display:${has2 ? 'block' : 'none'}">
             <div class="form-grid">
               <div class="field full"><label>Nome do 2º motorista</label><input class="input" name="second_name" value="${escapeHtml(c.second_name || '')}"></div>
-              <div class="field"><label>CPF</label><input class="input" name="second_cpf" value="${escapeHtml(c.second_cpf || '')}"></div>
+              <div class="field"><label>CPF</label><input class="input" name="second_cpf" data-cpf inputmode="numeric" maxlength="14" value="${escapeHtml(c.second_cpf || '')}"></div>
               <div class="field"><label>Telefone</label><input class="input" name="second_phone" value="${escapeHtml(c.second_phone || '')}"></div>
             </div>
           </div>
@@ -885,6 +917,7 @@ export async function renderEmpresa(root, user, onLogout) {
       footer: `<button class="btn btn-glass" data-cancel>Cancelar</button><button class="btn btn-blue" data-save>${icon('check')} Salvar</button>`,
     });
     const f = m.overlay.querySelector('#f-edit-mot');
+    bindCpfMask(m.overlay);
     const toggle = m.overlay.querySelector('#edit-second');
     const sf = m.overlay.querySelector('#edit-second-fields');
     toggle.onchange = () => { sf.style.display = toggle.checked ? 'block' : 'none'; };
@@ -998,7 +1031,7 @@ export async function renderEmpresa(root, user, onLogout) {
         <form id="f-mot">
           <div class="form-grid">
             <div class="field full"><label>Nome completo (nome e sobrenome)</label><input class="input" name="full_name" required placeholder="Ex.: João da Silva"></div>
-            <div class="field"><label>CPF</label><input class="input" name="cpf" placeholder="000.000.000-00"></div>
+            <div class="field"><label>CPF</label><input class="input" name="cpf" data-cpf inputmode="numeric" maxlength="14" placeholder="000.000.000-00"></div>
             <div class="field"><label>Telefone / WhatsApp</label><input class="input" name="phone" placeholder="5561988887777"></div>
             <div class="field"><label>E-mail (login)</label><input class="input" type="email" name="email" required placeholder="motorista@email.com"></div>
             <div class="field"><label>Cidade</label><input class="input" name="city" placeholder="Brasília/DF"></div>
@@ -1026,7 +1059,7 @@ export async function renderEmpresa(root, user, onLogout) {
           <div id="second-fields" style="display:none">
             <div class="form-grid">
               <div class="field full"><label>Nome do 2º motorista</label><input class="input" name="second_name" placeholder="Nome completo"></div>
-              <div class="field"><label>CPF</label><input class="input" name="second_cpf"></div>
+              <div class="field"><label>CPF</label><input class="input" name="second_cpf" data-cpf inputmode="numeric" maxlength="14"></div>
               <div class="field"><label>Telefone</label><input class="input" name="second_phone"></div>
             </div>
           </div>
@@ -1034,6 +1067,7 @@ export async function renderEmpresa(root, user, onLogout) {
       footer: `<button class="btn btn-glass" data-cancel>Cancelar</button><button class="btn btn-blue" data-save>${icon('check')} Cadastrar</button>`,
     });
     const f = m.overlay.querySelector('#f-mot');
+    bindCpfMask(m.overlay);
     const toggle = m.overlay.querySelector('#toggle-second');
     const secondFields = m.overlay.querySelector('#second-fields');
     toggle.onchange = () => { secondFields.style.display = toggle.checked ? 'block' : 'none'; };
