@@ -225,6 +225,7 @@ export async function renderEmpresa(root, user, onLogout) {
             <div>
               <div class="eyebrow" style="margin:0 0 .4rem">Juros por dia de atraso</div>
               <div class="field" style="margin:0"><label>Padrão — outras marcas (R$/dia)</label><input class="input" type="number" step="0.01" min="0" id="late-default" value="${cfg.late_fee_per_day}" placeholder="25,00"></div>
+              <div class="body-sm" style="margin-top:.4rem">O valor informado será cobrado a mais, por cada dia de atraso no pagamento de cada motorista.</div>
             </div>
             <div>
               <div class="eyebrow" style="margin:0 0 .4rem">Exceções por marca (ex.: BYD)</div>
