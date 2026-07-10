@@ -59,6 +59,10 @@ const norm = (s) => String(s || '')
 // O motorista tem carro elétrico? (muda respostas de recarga, manutenção e seguro)
 const isEletrico = (ctx) => /byd|eletric|dolphin/.test(norm((ctx?.veiculo?.modelo || '')));
 
+// A pergunta é sobre QUANTIA/valor? (ex.: "quanto é?", "qual o valor?", "quem paga?")
+// Só nesses casos o assistente cita os valores do contrato; senão, responde geral e humano.
+const perguntaValor = (t) => /\bquant[oa]s?\b|qual.{0,12}valor|\bvalor(es)?\b|reais|r\$|custa|custo|pre[cç]o|quem paga|porcentagem|percentual/.test(t);
+
 // Cada intenção: gatilhos (palavras) + resposta(ctx). `chips` = respostas rápidas sugeridas.
 const INTENCOES = [
   {
@@ -101,8 +105,10 @@ const INTENCOES = [
   {
     id: 'atraso',
     kw: ['atraso', 'atrasado', 'atrasei', 'posso atrasar', 'atrasar', 'juros', 'negociar', 'parcelar', 'divida', 'dívida', 'mora', 'multa de atraso', 'correcao', 'correção'],
-    resp: (ctx) => ({
-      text: `${ctx.pagamentosAtrasados ? 'Vi que tem um pagamento atrasado aí. ' : ''}Acontece! O ideal é acertar o quanto antes pela aba "Pagamentos" — o atraso vai gerando um acréscimo por dia. Se precisar de um prazo, me fala que eu chamo alguém do time. 🙏`,
+    resp: (ctx, o = {}) => ({
+      text: o.valor
+        ? `${ctx.pagamentosAtrasados ? 'Vi que tem um atraso aí. ' : ''}No atraso, o contrato prevê ${isEletrico(ctx) ? 'multa de 10%' : 'multa de mora'} + juros de 1% ao mês, e o valor de atraso por dia definido pela empresa já entra no Pix do app. O ideal é acertar logo pela aba "Pagamentos" — precisa de prazo, me fala. 🙏`
+        : `${ctx.pagamentosAtrasados ? 'Vi que tem um pagamento atrasado aí. ' : ''}Acontece! O ideal é acertar o quanto antes pela aba "Pagamentos" — o atraso vai gerando um acréscimo por dia. Se precisar de um prazo, me fala que eu chamo alguém do time. 🙏`,
       chips: ['Meu próximo pagamento', 'Falar com atendente'],
     }),
   },
@@ -140,10 +146,14 @@ const INTENCOES = [
   {
     id: 'manutencao',
     kw: ['manutencao', 'manutenção', 'revisao', 'revisão', 'quebrou', 'quebrado', 'defeito', 'problema', 'nao liga', 'não liga', 'nao pega', 'não pega', 'motor', 'barulho', 'pneu', 'freio', 'farol', 'luz do painel', 'vazamento', 'superaquec', 'oleo', 'óleo', 'consertar', 'conserto', 'quem paga a manutencao', 'de quem e a manutencao', 'troca de oleo', 'quantos km', 'a cada quantos'],
-    resp: (ctx) => ({
+    resp: (ctx, o = {}) => ({
       text: isEletrico(ctx)
-        ? 'É só pedir pela aba "Manutenção" que a empresa agenda numa autorizada BYD. Se o carro parou, me avisa que já chamo o time. 🔧'
-        : 'É só pedir pela aba "Manutenção" que a gente cuida do agendamento. Se for urgente (carro parado), me avisa que passo pra equipe na hora. 🔧',
+        ? (o.valor
+            ? 'No BYD elétrico, a manutenção fica por conta da empresa, feita na autorizada BYD. Você só cuida do dia a dia (recarga, pneus). É só pedir pela aba "Manutenção". 🔧'
+            : 'É só pedir pela aba "Manutenção" que a empresa agenda numa autorizada BYD. Se o carro parou, me avisa que já chamo o time. 🔧')
+        : (o.valor
+            ? 'No carro a combustão, o custo da manutenção é dividido meio a meio entre você e a empresa, e a revisão é a cada 10.000 km. É só pedir pela aba "Manutenção". 🔧'
+            : 'É só pedir pela aba "Manutenção" que a gente cuida do agendamento. Se for urgente (carro parado), me avisa que passo pra equipe na hora. 🔧'),
       chips: ['É urgente', 'Como solicito?'],
     }),
   },
@@ -205,38 +215,48 @@ const INTENCOES = [
   {
     id: 'recarga_wallbox',
     kw: ['wallbox', 'wall box', 'carregador', 'carregador residencial', 'carregador em casa', 'instalar carregador', 'estacao em casa', 'comodato', 'carregador de parede'],
-    resp: () => ({
-      text: 'O Wallbox é aquele carregador que a gente empresta pra você carregar em casa, sem custo pela cessão. A instalação (com um eletricista) fica por sua conta, e ele fica sob sua responsabilidade enquanto estiver com você. Qualquer dúvida de instalação, me fala que eu chamo o time. 🔌🏠',
+    resp: (ctx, o = {}) => ({
+      text: o.valor
+        ? 'Pela cessão do Wallbox você não paga nada — é emprestado. A instalação (com eletricista) fica por sua conta e, se quiser ficar com ele no fim, dá pra comprar por R$2.500. Qualquer dúvida, me fala que eu chamo o time. 🔌🏠'
+        : 'O Wallbox é aquele carregador que a gente empresta pra você carregar em casa, sem custo pela cessão. A instalação (com um eletricista) fica por sua conta, e ele fica sob sua responsabilidade enquanto estiver com você. Qualquer dúvida de instalação, me fala que eu chamo o time. 🔌🏠',
       chips: ['Falar com atendente'],
     }),
   },
   {
     id: 'multimidia',
     kw: ['multimidia', 'multimídia', 'central multimidia', 'tela do carro', 'na tela', 'tela multimidia', 'desbloquear', 'firmware', 'root', 'modificar o sistema', 'instalar aplicativo', 'instalar um app', 'instalar app', 'app na tela', 'software do carro', 'sistema do carro', 'atualizar o carro'],
-    resp: () => ({
-      text: 'Melhor não mexer no sistema da multimídia (desbloquear, instalar coisas, mudar firmware) — isso faz o carro perder a garantia. Se precisar de algo na central, pede pela aba "Manutenção" que a gente ajuda. 🙂',
+    resp: (ctx, o = {}) => ({
+      text: o.valor
+        ? 'Mexer no sistema da multimídia (desbloquear, firmware, apps não homologados) faz o carro perder a garantia, e o contrato prevê multa de R$2.000 além de cobrir os prejuízos. Melhor não arriscar — precisa de algo na central, pede pela aba "Manutenção". 🙂'
+        : 'Melhor não mexer no sistema da multimídia (desbloquear, instalar coisas, mudar firmware) — isso faz o carro perder a garantia. Se precisar de algo na central, pede pela aba "Manutenção" que a gente ajuda. 🙂',
     }),
   },
   {
     id: 'danos',
     kw: ['bati', 'bater', 'batida', 'danifiquei', 'risquei', 'risco no carro', 'amassei', 'amassado', 'estraguei', 'estragou', 'perda total', 'avaria', 'avariei', 'danos no carro', 'quem paga o conserto', 'quem paga o reparo', 'colidi', 'colisao', 'raspei', 'se eu bater'],
-    resp: (ctx) => ({
-      text: 'Enquanto o carro está com você, os danos ficam sob sua responsabilidade. Se bateu ou aconteceu algo, o melhor é me avisar agora que eu já te coloco em contato com o time pra resolver o conserto. 🙏',
+    resp: (ctx, o = {}) => ({
+      text: o.valor
+        ? 'Depende do estrago: você cobre o reparo ou, em caso de perda total, o valor de mercado do carro (tabela FIPE). Se tiver seguro, entra a franquia. Se aconteceu algo, me avisa que já chamo o time. 🙏'
+        : 'Enquanto o carro está com você, os danos ficam sob sua responsabilidade. Se bateu ou aconteceu algo, o melhor é me avisar agora que eu já te coloco em contato com o time pra resolver o conserto. 🙏',
       chips: ['Tive um acidente', 'Falar com atendente'],
     }),
   },
   {
     id: 'caucao',
     kw: ['caucao', 'caução', 'a caucao', 'de caucao', 'minha caucao', 'calcao', 'deposito', 'depósito', 'garantia em caucao', 'valor de garantia', 'valor de entrada', 'devolve o deposito', 'recebo a caucao de volta'],
-    resp: () => ({
-      text: 'A caução é uma garantia que fica com a gente no começo e volta pra você quando devolve o carro certinho, descontado o que houver. Quer que eu confirme o seu valor com o time? 💰',
+    resp: (ctx, o = {}) => ({
+      text: o.valor
+        ? `A caução costuma ser ${isEletrico(ctx) ? 'R$2.200 no elétrico' : 'R$1.600 no carro a combustão'} — é uma garantia que volta pra você na devolução, descontado o que houver. Confirmo o valor exato do seu contrato se quiser. 💰`
+        : 'A caução é uma garantia que fica com a gente no começo e volta pra você quando devolve o carro certinho, descontado o que houver. Quer que eu confirme o seu valor com o time? 💰',
     }),
   },
   {
     id: 'devolucao',
     kw: ['devolver o carro', 'devolucao', 'devolução', 'entregar o carro', 'fim do contrato', 'termino do contrato', 'atraso na devolucao', 'devolver atrasado', 'devolver depois', 'atrasar a devolucao', 'devolver', 'estado do carro', 'como devolvo', 'onde devolvo'],
-    resp: (ctx) => ({
-      text: 'Na hora de devolver, é só entregar o carro no mesmo estado que recebeu. Combina a data com a gente pra não ter atraso (que gera cobrança por dia). Quer que eu te ajude a agendar? 🚗',
+    resp: (ctx, o = {}) => ({
+      text: o.valor
+        ? `Devolvendo depois da data combinada, o atraso gera cobrança por dia — ${isEletrico(ctx) ? 'cerca de R$250/dia no elétrico' : 'cerca de R$150/dia no combustão'}. Por isso o ideal é combinar a data certinho. Quer agendar? 🚗`
+        : 'Na hora de devolver, é só entregar o carro no mesmo estado que recebeu. Combina a data com a gente pra não ter atraso (que gera cobrança por dia). Quer que eu te ajude a agendar? 🚗',
       chips: ['Falar com atendente'],
     }),
   },
@@ -310,7 +330,7 @@ function respostaLocal(text, ctx) {
     if (s > score) { score = s; melhor = it; }
   }
   if (melhor && score > 0) {
-    const r = melhor.resp(ctx);
+    const r = melhor.resp(ctx, { valor: perguntaValor(t) });
     return { reply: r.text, escalate: !!r.escalate, chips: r.chips || [] };
   }
   // Sem correspondência clara: resposta aberta e útil (não um beco sem saída).
