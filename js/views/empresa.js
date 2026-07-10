@@ -996,7 +996,6 @@ export async function renderEmpresa(root, user, onLogout) {
   async function manageDocumentation(c, after) {
     const contracts = await api.listContracts({ client_id: c.id });
     const veh = Object.values(vehiclesMap).find((v) => v.client_id === c.id);
-    const sixMonths = () => { const d = new Date(); d.setMonth(d.getMonth() + 6); return d.toISOString().slice(0, 10); };
     const m = modal({
       title: `Contratos — ${c.full_name}`, icon: 'doc',
       body: `
@@ -1014,11 +1013,7 @@ export async function renderEmpresa(root, user, onLogout) {
     });
     const reopen = () => { m.close(); manageDocumentation(c, after); };
     m.overlay.querySelector('[data-cancel]').onclick = () => { m.close(); after && after(); };
-    m.overlay.querySelector('[data-add-ct]').onclick = () => {
-      const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'application/pdf,image/*';
-      inp.onchange = async () => { if (!inp.files[0]) return; try { await api.uploadContract({ file: inp.files[0], client_id: c.id, vehicle_id: veh?.id || null, title: `Contrato de Locação — ${c.full_name}`, signed_date: todayISO(), start_date: todayISO(), end_date: sixMonths(), status: 'vigente' }); toast('Contrato enviado', 'ok'); reopen(); } catch (e) { toast('Erro: ' + e.message, 'err'); } };
-      inp.click();
-    };
+    m.overlay.querySelector('[data-add-ct]').onclick = () => { m.close(); addContractWithDates(c, veh, () => manageDocumentation(c, after)); };
     m.overlay.querySelectorAll('[data-open-ct]').forEach((b) => b.onclick = async () => { const rec = contracts.find((x) => x.id === b.dataset.openCt); openFile(await api.fileUrl(rec), rec.file_name || 'contrato.pdf'); });
     m.overlay.querySelectorAll('[data-edit-ct]').forEach((b) => b.onclick = () => editContractDates(contracts.find((x) => x.id === b.dataset.editCt), reopen));
     m.overlay.querySelectorAll('[data-del-ct]').forEach((b) => b.onclick = () => confirmDialog('Excluir este contrato?', async () => { await api.deleteContract(b.dataset.delCt); toast('Excluído', 'ok'); reopen(); }));
@@ -1048,6 +1043,38 @@ export async function renderEmpresa(root, user, onLogout) {
       const btn = m.overlay.querySelector('[data-save]'); btn.disabled = true; btn.innerHTML = '<span class="spinner" style="width:16px;height:16px"></span> Salvando...';
       try { await api.updateContract(ct.id, { start_date: s, end_date: e, signed_date: ct.signed_date || s }); toast('Vigência atualizada.', 'ok'); m.close(); after && after(); }
       catch (err) { toast('Erro: ' + err.message, 'err'); btn.disabled = false; btn.innerHTML = `${icon('check')} Salvar`; }
+    };
+  }
+
+  /* enviar um novo contrato para o motorista já cadastrado, com anexo + vigência */
+  function addContractWithDates(c, veh, after) {
+    const end6 = (() => { const dd = new Date(); dd.setMonth(dd.getMonth() + 6); return dd.toISOString().slice(0, 10); })();
+    const m = modal({
+      title: `Enviar contrato — ${c.full_name}`, icon: 'doc',
+      body: `
+        <div class="field" style="margin-bottom:.4rem"><label>Contrato assinado (PDF ou imagem)</label>
+          <div class="upload-mini" id="ac-drop">${icon('upload')} Anexar o contrato assinado</div>
+          <input type="file" id="ac-file" accept="application/pdf,image/*" hidden></div>
+        <div class="form-grid">
+          <div class="field"><label>Vigência — início</label><input class="input" type="date" id="ac-start" value="${todayISO()}"></div>
+          <div class="field"><label>Vigência — término</label><input class="input" type="date" id="ac-end" value="${end6}"></div>
+        </div>`,
+      footer: `<button class="btn btn-glass" data-cancel>Cancelar</button><button class="btn btn-blue" data-save>${icon('upload')} Enviar</button>`,
+    });
+    let file = null;
+    const drop = m.overlay.querySelector('#ac-drop');
+    const fin = m.overlay.querySelector('#ac-file');
+    drop.onclick = () => fin.click();
+    fin.onchange = () => { if (fin.files[0]) { file = fin.files[0]; drop.classList.add('has-file'); drop.innerHTML = `${icon('check')} ${escapeHtml(file.name)}`; } };
+    m.overlay.querySelector('[data-cancel]').onclick = () => { m.close(); after && after(); };
+    m.overlay.querySelector('[data-save]').onclick = async () => {
+      if (!file) { toast('Anexe o contrato primeiro.', 'err'); return; }
+      const s = m.overlay.querySelector('#ac-start').value || todayISO();
+      const e = m.overlay.querySelector('#ac-end').value || end6;
+      if (e < s) { toast('O término não pode ser antes do início.', 'err'); return; }
+      const btn = m.overlay.querySelector('[data-save]'); btn.disabled = true; btn.innerHTML = '<span class="spinner" style="width:16px;height:16px"></span> Enviando...';
+      try { await api.uploadContract({ file, client_id: c.id, vehicle_id: veh?.id || null, title: `Contrato de Locação — ${c.full_name}`, signed_date: s, start_date: s, end_date: e, status: 'vigente' }); toast('Contrato enviado', 'ok'); m.close(); after && after(); }
+      catch (err) { toast('Erro: ' + err.message, 'err'); btn.disabled = false; btn.innerHTML = `${icon('upload')} Enviar`; }
     };
   }
 
