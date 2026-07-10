@@ -237,6 +237,7 @@ const DemoBackend = {
   async deleteContract(id) { const db = loadDB(); db.contracts = db.contracts.filter((x) => x.id !== id); saveDB(db); const f = loadFiles(); delete f[id]; saveFiles(f); },
   async requestRenewal(contract_id) { const db = loadDB(); const ct = db.contracts.find((x) => x.id === contract_id); if (ct) ct.status = 'renovacao_solicitada'; saveDB(db); },
   async setContractStatus(id, status) { const db = loadDB(); const ct = db.contracts.find((x) => x.id === id); if (ct) ct.status = status; saveDB(db); },
+  async updateContract(id, data) { const db = loadDB(); const ct = db.contracts.find((x) => x.id === id); if (ct) Object.assign(ct, data); saveDB(db); return ct; },
 
   async listDocuments(filter = {}) {
     let d = loadDB().documents;
@@ -474,6 +475,7 @@ const SupabaseBackend = {
   async deleteContract(id) { const c = await sb(); unwrap(await c.from('contracts').delete().eq('id', id)); },
   async requestRenewal(contract_id) { const c = await sb(); unwrap(await c.rpc('request_contract_renewal', { p_contract: contract_id })); },
   async setContractStatus(id, status) { const c = await sb(); unwrap(await c.from('contracts').update({ status }).eq('id', id)); },
+  async updateContract(id, data) { const c = await sb(); return unwrap(await c.from('contracts').update(data).eq('id', id).select().single()); },
 
   async listDocuments(filter = {}) {
     const c = await sb(); let q = c.from('documents').select('*').order('created_at', { ascending: false });

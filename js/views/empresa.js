@@ -1004,8 +1004,10 @@ export async function renderEmpresa(root, user, onLogout) {
         <div class="panel-head" style="margin-bottom:.6rem"><h3 style="font-size:1rem;flex:1">Contratos</h3><button class="btn btn-ghost btn-sm" data-add-ct>${icon('upload')} Enviar</button></div>
         ${contracts.length ? contracts.map((ct) => `
           <div class="file-row"><div class="file-ico">${icon('doc')}</div>
-            <div class="f-meta"><div class="f-name">${escapeHtml(ct.title || 'Contrato')}</div><div class="f-sub">${ct.end_date ? vigencia(ct.end_date).texto : 'sem vigência'}</div></div>
+            <div class="f-meta"><div class="f-name">${escapeHtml(ct.title || 'Contrato')}</div>
+              <div class="f-sub">${ct.start_date ? fmt.date(ct.start_date) + ' → ' + fmt.date(ct.end_date) : (ct.end_date ? vigencia(ct.end_date).texto : 'sem vigência')}</div></div>
             <button class="icon-btn" data-open-ct="${ct.id}" title="Abrir">${icon('eye')}</button>
+            <button class="icon-btn" data-edit-ct="${ct.id}" title="Alterar vigência">${icon('calendar')}</button>
             <button class="icon-btn danger" data-del-ct="${ct.id}" title="Excluir">${icon('trash')}</button>
           </div>`).join('') : emptyBox('Nenhum contrato.')}`,
       footer: `<button class="btn btn-blue" data-cancel>Fechar</button>`,
@@ -1018,7 +1020,35 @@ export async function renderEmpresa(root, user, onLogout) {
       inp.click();
     };
     m.overlay.querySelectorAll('[data-open-ct]').forEach((b) => b.onclick = async () => { const rec = contracts.find((x) => x.id === b.dataset.openCt); openFile(await api.fileUrl(rec), rec.file_name || 'contrato.pdf'); });
+    m.overlay.querySelectorAll('[data-edit-ct]').forEach((b) => b.onclick = () => editContractDates(contracts.find((x) => x.id === b.dataset.editCt), reopen));
     m.overlay.querySelectorAll('[data-del-ct]').forEach((b) => b.onclick = () => confirmDialog('Excluir este contrato?', async () => { await api.deleteContract(b.dataset.delCt); toast('Excluído', 'ok'); reopen(); }));
+  }
+
+  /* alterar as datas de vigência (início / término) de um contrato */
+  function editContractDates(ct, after) {
+    if (!ct) return;
+    const start = (ct.start_date || ct.signed_date || todayISO());
+    const end = ct.end_date || '';
+    const m = modal({
+      title: 'Alterar vigência do contrato', icon: 'calendar',
+      body: `
+        <p class="body-sm" style="margin-bottom:1rem">${escapeHtml(ct.title || 'Contrato')}</p>
+        <div class="form-grid">
+          <div class="field"><label>Vigência — início</label><input class="input" type="date" id="ct-start" value="${start}"></div>
+          <div class="field"><label>Vigência — término</label><input class="input" type="date" id="ct-end" value="${end}"></div>
+        </div>`,
+      footer: `<button class="btn btn-glass" data-cancel>Cancelar</button><button class="btn btn-blue" data-save>${icon('check')} Salvar</button>`,
+    });
+    m.overlay.querySelector('[data-cancel]').onclick = m.close;
+    m.overlay.querySelector('[data-save]').onclick = async () => {
+      const s = m.overlay.querySelector('#ct-start').value;
+      const e = m.overlay.querySelector('#ct-end').value;
+      if (!s || !e) { toast('Preencha início e término.', 'err'); return; }
+      if (e < s) { toast('O término não pode ser antes do início.', 'err'); return; }
+      const btn = m.overlay.querySelector('[data-save]'); btn.disabled = true; btn.innerHTML = '<span class="spinner" style="width:16px;height:16px"></span> Salvando...';
+      try { await api.updateContract(ct.id, { start_date: s, end_date: e, signed_date: ct.signed_date || s }); toast('Vigência atualizada.', 'ok'); m.close(); after && after(); }
+      catch (err) { toast('Erro: ' + err.message, 'err'); btn.disabled = false; btn.innerHTML = `${icon('check')} Salvar`; }
+    };
   }
 
   async function formMotorista(after) {
