@@ -1025,6 +1025,7 @@ export async function renderEmpresa(root, user, onLogout) {
     const vehicles = Object.values(vehiclesMap);
     const cfg = await api.getPaymentSettings();
     const methodOpts = (cfg.methods || []).map((mm) => `<option value="${mm.id}">${escapeHtml(mm.label)}${mm.pix_key ? ' · ' + escapeHtml(mm.pix_key) : ''}</option>`).join('');
+    const end6 = (() => { const dd = new Date(); dd.setMonth(dd.getMonth() + 6); return dd.toISOString().slice(0, 10); })();
     const m = modal({
       title: 'Cadastrar novo motorista', icon: 'users',
       body: `
@@ -1051,7 +1052,11 @@ export async function renderEmpresa(root, user, onLogout) {
           <div class="field" style="margin-bottom:.2rem"><label>Contrato assinado (opcional)</label>
             <div class="upload-mini" id="mot-contract-drop">${icon('upload')} Anexar o contrato assinado (PDF ou imagem)</div>
             <input type="file" id="mot-contract-file" accept="application/pdf,image/*" hidden></div>
-          <div class="body-sm" style="margin:0 0 .2rem">Fica salvo na Documentação do motorista.</div>
+          <div class="form-grid">
+            <div class="field"><label>Vigência — início</label><input class="input" type="date" id="mot-contract-start" value="${todayISO()}"></div>
+            <div class="field"><label>Vigência — término</label><input class="input" type="date" id="mot-contract-end" value="${end6}"></div>
+          </div>
+          <div class="body-sm" style="margin:0 0 .2rem">Fica salvo na Documentação do motorista. O motorista vê a vigência e o contador de dias.</div>
 
           <label style="display:flex;align-items:center;gap:8px;margin:.6rem 0 .3rem;cursor:pointer;font-size:.86rem;font-weight:600;color:var(--gray-2)">
             <input type="checkbox" id="toggle-second"> Adicionar 2º motorista (conta conjunta)
@@ -1086,8 +1091,9 @@ export async function renderEmpresa(root, user, onLogout) {
       try {
         const cred = await api.createDriver(data);
         if (contractFile && cred.user_id) {
-          const end = (() => { const dd = new Date(); dd.setMonth(dd.getMonth() + 6); return dd.toISOString().slice(0, 10); })();
-          try { await api.uploadContract({ file: contractFile, client_id: cred.user_id, vehicle_id: data.vehicle_id || null, title: `Contrato de Locação — ${data.full_name}`, signed_date: todayISO(), start_date: todayISO(), end_date: end, status: 'vigente' }); }
+          const start = m.overlay.querySelector('#mot-contract-start').value || todayISO();
+          const end = m.overlay.querySelector('#mot-contract-end').value || end6;
+          try { await api.uploadContract({ file: contractFile, client_id: cred.user_id, vehicle_id: data.vehicle_id || null, title: `Contrato de Locação — ${data.full_name}`, signed_date: start, start_date: start, end_date: end, status: 'vigente' }); }
           catch (e) { toast('Motorista criado, mas o contrato falhou: ' + e.message, 'err'); }
         }
         m.close(); showCredentials(cred, data.full_name, data.phone);
