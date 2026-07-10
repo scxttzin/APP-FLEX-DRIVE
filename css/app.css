@@ -407,6 +407,20 @@ table.tbl td.row-actions .btn { flex-shrink: 0; }
 .rcpt-total { font-size: 0.82rem; color: var(--gray-2); flex-shrink: 0; }
 .rcpt-group .table-wrap { padding: 0 1rem 0.8rem; }
 
+/* ─── Gráficos do Dashboard (empresa) ─── */
+.chart-pie-wrap { display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap; }
+.chart-pie { flex-shrink: 0; }
+.chart-legend { flex: 1; min-width: 160px; display: flex; flex-direction: column; gap: 0.55rem; }
+.cl-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.86rem; }
+.cl-dot { width: 12px; height: 12px; border-radius: 4px; flex-shrink: 0; }
+.cl-lbl { color: var(--gray-2); font-weight: 600; }
+.cl-val { margin-left: auto; color: var(--gray-1); font-weight: 700; }
+.bars { display: flex; align-items: flex-end; gap: 0.5rem; height: 170px; padding-top: 0.5rem; }
+.bar-col { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 4px; }
+.bar-val { font-size: 0.66rem; font-weight: 700; color: var(--gray-3); white-space: nowrap; }
+.bar { width: 70%; max-width: 46px; min-height: 4px; border-radius: 7px 7px 0 0; background: linear-gradient(180deg, var(--blue-light), var(--blue)); box-shadow: 0 2px 8px rgba(37,99,235,0.25); transition: height .3s var(--ease-smooth); }
+.bar-lbl { font-size: 0.68rem; font-weight: 600; color: var(--gray-4); text-transform: capitalize; white-space: nowrap; }
+
 .rcpt-filter { flex: 0 1 220px; max-width: 220px; width: auto; }
 
 /* cabeçalho de painel que quebra no mobile (evita o botão sair do card) */

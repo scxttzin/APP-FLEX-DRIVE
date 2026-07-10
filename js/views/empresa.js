@@ -93,16 +93,44 @@ export async function renderEmpresa(root, user, onLogout) {
     const manutAbertas = maints.filter((m) => m.status !== 'concluida');
     const taxaOcupacao = vehicles.length ? Math.round((locados / vehicles.length) * 100) : 0;
 
+    // Gráficos: faturamento (recebido) x gastos (manutenção + seguro) e evolução por período
+    const faturamentoTotal = payments.filter((p) => paymentStatus(p) === 'pago').reduce((s, p) => s + Number(p.amount), 0);
+    const gastoManut = maints.reduce((s, m) => s + Number(m.cost || 0), 0);
+    const gastoSeguro = vehicles.reduce((s, v) => s + Number(v.insurance_cost || 0), 0);
+    const pieSlices = [
+      { label: 'Faturamento', value: faturamentoTotal, color: 'var(--blue)' },
+      { label: 'Manutenção', value: gastoManut, color: 'var(--amber)' },
+      { label: 'Seguro', value: gastoSeguro, color: '#8B5CF6' },
+    ];
+    const barras = revenueBuckets(payments);
+
     // só os recebimentos que vencem nos próximos 14 dias (inclui os já atrasados, que ainda precisam ser pagos)
     const proximos = payments.filter((p) => paymentStatus(p) !== 'pago' && daysFromToday(p.due_date) <= 14).sort((a, b) => a.due_date.localeCompare(b.due_date));
 
     shell.content.innerHTML = `
       <div class="fade-in">
         <div class="kpi-grid">
-          ${kpi('money', 'Recebido no mês', fmt.money(recebidoMes), `${payments.filter((p) => paymentStatus(p) === 'pago' && (p.paid_date || '').slice(0, 7) === month).length} pagamentos`, 'up')}
-          ${kpi('clock', 'A receber', fmt.money(aReceber), `${atrasados.length} em atraso`, atrasados.length ? 'down' : '')}
+          ${kpi('money', 'Faturamento Mensal', fmt.money(recebidoMes), `${payments.filter((p) => paymentStatus(p) === 'pago' && (p.paid_date || '').slice(0, 7) === month).length} pagamentos`, 'up')}
+          ${kpi('clock', 'Pagamentos a receber', fmt.money(aReceber), `${atrasados.length} em atraso`, atrasados.length ? 'down' : '')}
           ${kpi('users', 'Motoristas', `${Object.keys(clientsMap).length}`, 'cadastrados')}
           ${kpi('wrench', 'Manutenções abertas', `${manutAbertas.length}`, `${emManut} veículo(s) parado(s)`)}
+        </div>
+
+        <div class="grid-cols grid-2">
+          <div class="panel glass">
+            <div class="panel-head"><span class="panel-ico">${icon('payments')}</span><h3>Faturamento x Gastos</h3></div>
+            ${faturamentoTotal || gastoManut || gastoSeguro ? `
+              <div class="chart-pie-wrap">
+                ${donutChart(pieSlices)}
+                <div class="chart-legend">
+                  ${pieSlices.map((s) => `<div class="cl-item"><span class="cl-dot" style="background:${s.color}"></span><span class="cl-lbl">${s.label}</span><span class="cl-val mono">${fmt.money(s.value)}</span></div>`).join('')}
+                </div>
+              </div>` : emptyBox('Sem dados de faturamento ainda.')}
+          </div>
+          <div class="panel glass">
+            <div class="panel-head"><span class="panel-ico">${icon('money')}</span><h3>Recebido por ${barras.periodo}</h3></div>
+            ${barras.bars.length ? barChart(barras.bars) : emptyBox('Sem recebimentos registrados ainda.')}
+          </div>
         </div>
 
         <div class="panel glass">
@@ -219,7 +247,7 @@ export async function renderEmpresa(root, user, onLogout) {
           <div class="panel-head"><span class="panel-ico">${icon('pix')}</span><h3>Método de cobrança</h3></div>
           <p class="body-sm" style="margin-bottom:.7rem">Chaves Pix de cobrança — cada uma pode ser vinculada a um motorista na aba <strong>Motoristas</strong>.</p>
           <div id="cobr-methods"></div>
-          <button type="button" class="btn btn-glass btn-sm" id="add-method">${icon('plus')} Adicionar chave</button>
+          <button type="button" class="btn btn-glass btn-sm" id="add-method">${icon('plus')} Adicionar nova chave</button>
 
           <div class="cobr-split">
             <div>
@@ -677,6 +705,7 @@ export async function renderEmpresa(root, user, onLogout) {
           <span class="plate">${escapeHtml(v.plate)}</span>
           <h4>${escapeHtml(v.brand)} ${escapeHtml(v.model)}</h4>
           <div class="veh-meta"><span>${v.year}</span><span>${escapeHtml(v.color)}</span><span>${fmt.km(v.km)}</span></div>
+          ${Number(v.insurance_cost) > 0 ? `<div class="body-sm veh-insurance" style="margin-top:.5rem" title="Visível só para a empresa">${icon('shield', '')} Seguro: <strong>${fmt.money(v.insurance_cost)}</strong> <span style="color:var(--gray-4)">· só empresa</span></div>` : ''}
           ${v.client_id ? `<div class="body-sm" style="margin-top:.5rem">${icon('user', '')} ${escapeHtml(clientName(v.client_id))}</div>` : ''}
           <div class="veh-foot">
             <div class="veh-price">${fmt.money(v.weekly_value)} <small>/semana</small></div>
@@ -742,6 +771,7 @@ export async function renderEmpresa(root, user, onLogout) {
             <div class="field"><label>Cor</label><input class="input" name="color" value="${escapeHtml(v?.color || '')}" placeholder="Branco"></div>
             <div class="field"><label>KM atual</label><input class="input" type="number" name="km" value="${v?.km || 0}"></div>
             <div class="field"><label>Valor semanal (R$)</label><input class="input" type="number" step="0.01" name="weekly_value" value="${v?.weekly_value || ''}"></div>
+            <div class="field"><label>Gasto com seguro (R$) <span style="color:var(--gray-4);font-weight:500">· só empresa</span></label><input class="input" type="number" step="0.01" min="0" name="insurance_cost" value="${v?.insurance_cost ?? ''}" placeholder="0,00"></div>
             <div class="field"><label>Renavam</label><input class="input" name="renavam" value="${escapeHtml(v?.renavam || '')}"></div>
             <div class="field"><label>Status</label>
               <select class="select" name="status">${Object.entries(VEHICLE_STATUS).map(([k, l]) => `<option value="${k}" ${v?.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -767,6 +797,7 @@ export async function renderEmpresa(root, user, onLogout) {
       const f = m.overlay.querySelector('#f-veh'); if (!f.reportValidity()) return;
       const data = Object.fromEntries(new FormData(f));
       data.plate = data.plate.toUpperCase(); data.year = Number(data.year); data.km = Number(data.km); data.weekly_value = Number(data.weekly_value || 0);
+      data.insurance_cost = Number(data.insurance_cost || 0);
       if (!data.client_id) data.client_id = null;
       if (isEdit) data.id = v.id;
       // Regra: um motorista não pode estar vinculado a dois veículos ao mesmo tempo.
@@ -1418,6 +1449,55 @@ export async function renderEmpresa(root, user, onLogout) {
     </div>`;
   }
   function emptyBox(msg) { return `<div class="empty">${icon('info', 'empty-ico')}<p>${escapeHtml(msg)}</p></div>`; }
+
+  /* ── Gráficos (SVG/CSS, sem biblioteca) ── */
+  // Donut: relação entre fatias (faturamento, manutenção, seguro)
+  function donutChart(slices) {
+    const total = slices.reduce((s, x) => s + Number(x.value || 0), 0);
+    const R = 52, r = 30, cx = 60, cy = 60;
+    if (total <= 0) return '';
+    const nonZero = slices.filter((s) => s.value > 0);
+    if (nonZero.length === 1) {
+      return `<svg viewBox="0 0 120 120" width="120" height="120" class="chart-pie"><circle cx="${cx}" cy="${cy}" r="${(R + r) / 2}" fill="none" stroke="${nonZero[0].color}" stroke-width="${R - r}"></circle></svg>`;
+    }
+    let a0 = -Math.PI / 2;
+    const arcs = slices.map((s) => {
+      const frac = Number(s.value || 0) / total;
+      if (frac <= 0) return '';
+      const a1 = a0 + frac * 2 * Math.PI; const large = frac > 0.5 ? 1 : 0;
+      const p = (rad, ang) => `${(cx + rad * Math.cos(ang)).toFixed(2)} ${(cy + rad * Math.sin(ang)).toFixed(2)}`;
+      const d = `M${p(R, a0)} A${R} ${R} 0 ${large} 1 ${p(R, a1)} L${p(r, a1)} A${r} ${r} 0 ${large} 0 ${p(r, a0)} Z`;
+      a0 = a1;
+      return `<path d="${d}" fill="${s.color}"></path>`;
+    }).join('');
+    return `<svg viewBox="0 0 120 120" width="120" height="120" class="chart-pie">${arcs}</svg>`;
+  }
+
+  // Torres: recebido por mês/ano
+  function barChart(bars) {
+    const max = Math.max(...bars.map((b) => b.value), 1);
+    return `<div class="bars">${bars.map((b) => `
+      <div class="bar-col" title="${escapeHtml(b.label)}: ${fmt.money(b.value)}">
+        <div class="bar-val">${b.value >= 1000 ? 'R$' + (b.value / 1000).toFixed(1) + 'k' : fmt.money(b.value)}</div>
+        <div class="bar" style="height:${Math.max(4, (b.value / max) * 100)}%"></div>
+        <div class="bar-lbl">${escapeHtml(b.label)}</div>
+      </div>`).join('')}</div>`;
+  }
+
+  // Agrupa o recebido por mês; se passar de 12 meses, agrupa por ano.
+  function revenueBuckets(payments) {
+    const paid = payments.filter((p) => paymentStatus(p) === 'pago' && p.paid_date);
+    const byMonth = {};
+    paid.forEach((p) => { const k = String(p.paid_date).slice(0, 7); byMonth[k] = (byMonth[k] || 0) + Number(p.amount); });
+    const months = Object.keys(byMonth).sort();
+    if (months.length > 12) {
+      const byYear = {};
+      paid.forEach((p) => { const y = String(p.paid_date).slice(0, 4); byYear[y] = (byYear[y] || 0) + Number(p.amount); });
+      return { periodo: 'ano', bars: Object.keys(byYear).sort().map((y) => ({ label: y, value: byYear[y] })) };
+    }
+    const mNames = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+    return { periodo: 'mês', bars: months.slice(-12).map((k) => ({ label: `${mNames[Number(k.slice(5, 7)) - 1]}/${k.slice(2, 4)}`, value: byMonth[k] })) };
+  }
 
   /* ── Sino de notificações (topo) ── */
   async function refreshNotifications() {

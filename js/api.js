@@ -393,8 +393,15 @@ const SupabaseBackend = {
   async getVehicle(id) { const c = await sb(); return unwrap(await c.from('vehicles').select('*').eq('id', id).single()); },
   async saveVehicle(data) {
     const c = await sb();
-    if (data.id) return unwrap(await c.from('vehicles').update(data).eq('id', data.id).select().single());
-    const { id, ...ins } = data; return unwrap(await c.from('vehicles').insert(ins).select().single());
+    try {
+      if (data.id) return unwrap(await c.from('vehicles').update(data).eq('id', data.id).select().single());
+      const { id, ...ins } = data; return unwrap(await c.from('vehicles').insert(ins).select().single());
+    } catch (e) {
+      // coluna insurance_cost ausente (migration_v12 não aplicada) → grava sem ela
+      const { insurance_cost, ...rest } = data;
+      if (rest.id) return unwrap(await c.from('vehicles').update(rest).eq('id', rest.id).select().single());
+      const { id, ...ins } = rest; return unwrap(await c.from('vehicles').insert(ins).select().single());
+    }
   },
   async deleteVehicle(id) { const c = await sb(); unwrap(await c.from('vehicles').delete().eq('id', id)); },
 
