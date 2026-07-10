@@ -237,7 +237,7 @@ export async function renderCliente(root, user, onLogout) {
           ${np ? `<div class="kpi glass"><div class="kpi-top"><span class="kpi-label">Próximo vencimento</span><span class="kpi-ico">${icon('clock')}</span></div><div class="kpi-val" style="font-size:1.4rem">${fmt.date(np.due_date)}</div><div class="kpi-delta">${fmt.money(np.amount)}</div></div>` : ''}
           <div class="kpi glass"><div class="kpi-top"><span class="kpi-label">Pagamentos efetuados</span><span class="kpi-ico">${icon('check')}</span></div><div class="kpi-val">${pagosCount}</div><div class="kpi-delta up">pagamentos concluídos</div></div>
         </div>
-        <div class="grid-cols grid-3-2">
+        <div class="grid-cols grid-3-2 align-start">
           <div class="panel glass">
             <div class="panel-head"><span class="panel-ico">${icon('calendar')}</span><h3>Calendário</h3></div>
             <div id="cal-mount"></div>

@@ -231,6 +231,8 @@ body.dash-active .topbar { background: rgba(214,228,255,0.72); border-bottom-col
 .panel-head .panel-ico { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--blue-pale); color: var(--blue); }
 
 .grid-cols { display: grid; gap: 1.4rem; }
+/* cada painel com sua própria altura (evita o calendário esticar junto com o painel ao lado) */
+.grid-cols.align-start { align-items: start; }
 @media (min-width: 1000px){ .grid-2-3 { grid-template-columns: 1.6fr 1fr; } .grid-3-2 { grid-template-columns: 1fr 1.6fr; } }
 @media (min-width: 1000px){ .grid-2 { grid-template-columns: 1fr 1fr; } }
 
