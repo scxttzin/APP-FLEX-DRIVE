@@ -257,10 +257,10 @@ table.tbl td.row-actions .btn { flex-shrink: 0; }
 .veh-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1.2rem; }
 .veh-card { border-radius: var(--radius-md); overflow: hidden; display: flex; flex-direction: column; transition: transform .2s var(--ease-smooth), box-shadow .2s; }
 .veh-card:hover { transform: translateY(-4px); box-shadow: 0 12px 36px rgba(37,99,235,0.14); }
-.veh-thumb { height: 140px; background: linear-gradient(135deg, #EBF2FF, #DCE7FF); display: grid; place-items: center; position: relative; }
-.veh-thumb img { height: 92px; object-fit: contain; }
-/* foto real do veículo: mostra o carro inteiro, centralizado no fundo (proporção igual para todos) */
-.veh-thumb img.veh-photo { height: 100%; width: 100%; object-fit: contain; padding: 8px; }
+.veh-thumb { height: 140px; background: linear-gradient(135deg, #EBF2FF, #DCE7FF); display: grid; place-items: center; position: relative; overflow: hidden; }
+.veh-thumb img { max-height: 92px; max-width: 100%; object-fit: contain; }
+/* foto real do veículo: presa dentro da moldura (140px), carro inteiro centralizado, sem vazar sobre o texto */
+.veh-thumb img.veh-photo { position: absolute; inset: 0; width: 100%; height: 100%; max-height: none; object-fit: contain; padding: 10px; }
 .veh-thumb .badge { position: absolute; top: 10px; right: 10px; }
 .veh-body { padding: 1rem 1.1rem 1.2rem; flex: 1; display: flex; flex-direction: column; }
 .veh-body .plate { font-family: 'Inter'; font-weight: 700; font-size: 0.78rem; letter-spacing: 0.08em; color: var(--gray-3); background: var(--off2); padding: 0.15rem 0.5rem; border-radius: 6px; display: inline-block; margin-bottom: 0.5rem; align-self: flex-start; }
