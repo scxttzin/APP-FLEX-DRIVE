@@ -168,8 +168,7 @@ const INTENCOES = [
     id: 'troca_veiculo',
     kw: ['trocar carro', 'troca de veiculo', 'troca de veículo', 'trocar veiculo', 'trocar de veiculo', 'outro carro', 'mudar de carro', 'solicitar troca'],
     resp: () => ({
-      text: 'Para trocar de veículo, você precisa entrar em contato com o nosso time para verificar a disponibilidade. Havendo disponibilidade, possivelmente sim! Quer que eu te encaminhe para verificar?',
-      escalate: true,
+      text: 'Para trocar de veículo, você precisa solicitar a troca na aba "Veículo". Nossa equipe vai analisar seu pedido e retornar o contato logo após. 🚗',
     }),
   },
   {
