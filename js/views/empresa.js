@@ -764,7 +764,7 @@ export async function renderEmpresa(root, user, onLogout) {
           <span class="plate">${escapeHtml(v.plate)}</span>
           <h4>${escapeHtml(v.brand)} ${escapeHtml(v.model)}</h4>
           <div class="veh-meta"><span>${v.year}</span><span>${escapeHtml(v.color)}</span><span>${fmt.km(v.km)}</span></div>
-          ${Number(v.insurance_cost) > 0 ? `<div class="body-sm veh-insurance" style="margin-top:.5rem" title="Visível só para a empresa">${icon('shield', '')} Seguro: <strong>${fmt.money(v.insurance_cost)}</strong> <span style="color:var(--gray-4)">· só empresa</span></div>` : ''}
+          ${Number(v.insurance_cost) > 0 ? `<div class="body-sm veh-insurance" style="margin-top:.5rem">${icon('shield', '')} Seguro: <strong>${fmt.money(v.insurance_cost)}</strong></div>` : ''}
           ${v.client_id ? `<div class="body-sm" style="margin-top:.5rem">${icon('user', '')} ${escapeHtml(clientName(v.client_id))}</div>` : ''}
           <div class="veh-foot">
             <div class="veh-price">${fmt.money(v.weekly_value)} <small>/semana</small></div>
