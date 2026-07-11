@@ -1564,47 +1564,10 @@ export async function renderEmpresa(root, user, onLogout) {
       <circle cx="13" cy="13" r="13" fill="url(#route-grad)" stroke="#fff" stroke-width="2"/>
       <g transform="translate(3,3.5) scale(0.8)" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M5 13l1.5-4.5A2 2 0 0 1 8.4 7h7.2a2 2 0 0 1 1.9 1.5L19 13M5 13h14v4H5v-4Z"/><circle cx="8" cy="17" r="1.4"/><circle cx="16" cy="17" r="1.4"/></g></g>`;
-    // fundo estilo Waze em modo CLARO: terra clara, água, parques, rodovias azuis e ruas brancas
-    const mapBg = `
-      <g clip-path="url(#route-clip)">
-        <rect x="0" y="0" width="${W}" height="${H}" fill="#EDF0F4"/>
-        <path d="M250 -10 C 244 40, 300 66, 282 110 C 268 150, 322 176, 300 210 L 360 210 L 360 -10 Z" fill="#C2DAF2"/>
-        <ellipse cx="64" cy="152" rx="32" ry="17" fill="#C2DAF2"/>
-        <path d="M36 26 C 66 16, 98 28, 92 52 C 86 76, 52 80, 40 66 C 26 50, 20 34, 36 26 Z" fill="#CFE7C7"/>
-        <path d="M150 118 C 178 110, 200 128, 188 148 C 178 166, 146 164, 140 146 C 136 132, 138 122, 150 118 Z" fill="#CFE7C7"/>
-        <g stroke-linecap="round" fill="none">
-          <path d="M-10 74 C 110 62, 230 92, 360 62" stroke="#9FBDE8" stroke-width="9"/>
-          <path d="M300 -10 C 282 70, 322 140, 300 210" stroke="#9FBDE8" stroke-width="8"/>
-          <path d="M-10 74 C 110 62, 230 92, 360 62" stroke="#CBDDF6" stroke-width="6"/>
-          <path d="M300 -10 C 282 70, 322 140, 300 210" stroke="#CBDDF6" stroke-width="5"/>
-        </g>
-        <g stroke="#D2D9E3" stroke-linecap="round" fill="none">
-          <path d="M-10 44 C 90 40, 200 54, 360 40" stroke-width="5"/>
-          <path d="M-10 118 C 90 116, 220 126, 360 112" stroke-width="5"/>
-          <path d="M-10 158 C 110 158, 230 148, 360 158" stroke-width="4"/>
-          <path d="M74 -10 C 70 60, 84 130, 76 210" stroke-width="5"/>
-          <path d="M150 -10 C 148 70, 160 140, 152 210" stroke-width="4"/>
-          <path d="M214 -10 C 210 60, 224 130, 216 210" stroke-width="4"/>
-          <path d="M-10 12 L 200 210" stroke-width="4"/>
-          <path d="M120 -10 L 360 138" stroke-width="4"/>
-        </g>
-        <g stroke="#FFFFFF" stroke-linecap="round" fill="none">
-          <path d="M-10 44 C 90 40, 200 54, 360 40" stroke-width="3"/>
-          <path d="M-10 118 C 90 116, 220 126, 360 112" stroke-width="3"/>
-          <path d="M-10 158 C 110 158, 230 148, 360 158" stroke-width="2.4"/>
-          <path d="M74 -10 C 70 60, 84 130, 76 210" stroke-width="3"/>
-          <path d="M150 -10 C 148 70, 160 140, 152 210" stroke-width="2.4"/>
-          <path d="M214 -10 C 210 60, 224 130, 216 210" stroke-width="2.4"/>
-          <path d="M-10 12 L 200 210" stroke-width="2.4"/>
-          <path d="M120 -10 L 360 138" stroke-width="2.4"/>
-        </g>
-      </g>`;
     return `<div class="route-wrap"><svg viewBox="0 0 ${W} ${H}" class="route-svg">
       <defs>
         <linearGradient id="route-grad" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2563EB"/><stop offset="1" stop-color="#16A34A"/></linearGradient>
-        <clipPath id="route-clip"><rect x="0" y="0" width="${W}" height="${H}" rx="14"/></clipPath>
       </defs>
-      ${mapBg}
       <path d="${d}" fill="none" stroke="url(#route-grad)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" class="route-line"/>
       ${dots}${startPin}${car}${vals}${labels}
     </svg></div>`;

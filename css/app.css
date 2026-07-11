@@ -432,11 +432,11 @@ table.tbl td.row-actions .btn { flex-shrink: 0; }
 .chart-total strong.neg { color: var(--red); }
 /* gráfico de trajeto (estilo Uber) */
 .route-wrap { width: 100%; padding-top: 0.3rem; }
-.route-svg { display: block; width: 100%; height: auto; overflow: visible; border-radius: 14px; box-shadow: 0 2px 10px rgba(15,23,42,0.08); }
-.route-line { filter: drop-shadow(0 3px 6px rgba(15,23,42,0.28)); }
+.route-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.route-line { filter: drop-shadow(0 3px 6px rgba(37,99,235,0.22)); }
 .route-dot { fill: #fff; stroke: var(--blue); stroke-width: 2.5; }
-.route-val { font-size: 10px; font-weight: 800; fill: var(--gray-1); paint-order: stroke; stroke: #fff; stroke-width: 3px; }
-.route-lbl { font-size: 9.5px; font-weight: 700; fill: var(--gray-3); text-transform: capitalize; paint-order: stroke; stroke: #fff; stroke-width: 2.5px; }
+.route-val { font-size: 10px; font-weight: 800; fill: var(--gray-1); }
+.route-lbl { font-size: 9.5px; font-weight: 700; fill: var(--gray-4); text-transform: capitalize; }
 /* seletor Mês/Ano dos gráficos */
 .seg.seg-sm { margin: 0; flex-shrink: 0; }
 .seg.seg-sm button { padding: 0.32rem 0.7rem; font-size: 0.76rem; }
