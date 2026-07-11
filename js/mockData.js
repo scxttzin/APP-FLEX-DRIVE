@@ -27,7 +27,7 @@ export const SEED = {
     { id: 'v-2', plate: 'PQR2B34', brand: 'BYD',        model: 'Dolphin Plus', year: 2024, color: 'Cinza',  renavam: '11234567891', km: 8900,  status: 'locado',     client_id: 'u-maria', weekly_value: 720, next_revision: addDays(40) },
     { id: 'v-3', plate: 'STU3C45', brand: 'Volkswagen', model: 'Polo Track',   year: 2023, color: 'Prata',  renavam: '21234567892', km: 31200, status: 'locado',     client_id: 'u-carlos',weekly_value: 580, next_revision: addDays(8)  },
     { id: 'v-4', plate: 'VWX4D56', brand: 'BYD',        model: 'Dolphin Mini', year: 2024, color: 'Azul',   renavam: '31234567893', km: 4100,  status: 'disponivel', client_id: null,      weekly_value: 650, next_revision: addDays(55) },
-    { id: 'v-5', plate: 'YZA5E67', brand: 'GWM',        model: 'Ora 03',       year: 2024, color: 'Branco', renavam: '41234567894', km: 15600, status: 'manutencao', client_id: null,      weekly_value: 700, next_revision: addDays(2)  },
+    { id: 'v-5', plate: 'YZA5E67', brand: 'GWM',        model: 'Ora 03',       year: 2024, color: 'Branco', renavam: '41234567894', km: 15600, status: 'disponivel', client_id: null,      weekly_value: 700, next_revision: addDays(2)  },
     { id: 'v-6', plate: 'BCD6F78', brand: 'Volkswagen', model: 'Polo Track',   year: 2023, color: 'Preto',  renavam: '51234567895', km: 22000, status: 'disponivel', client_id: null,      weekly_value: 580, next_revision: addDays(60) },
   ],
 

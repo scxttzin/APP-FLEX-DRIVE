@@ -312,13 +312,14 @@ export async function renderCliente(root, user, onLogout) {
     const { vehicle } = await loadAll();
     if (!vehicle) { shell.content.innerHTML = `<div class="panel glass"><div class="empty">${icon('car', 'empty-ico')}<p>Nenhum veículo vinculado à sua conta.</p></div></div>`; return; }
     const documents = await api.listDocuments({ vehicle_id: vehicle.id });
-    const trocaDisponivel = (await api.listVehicles({ status: 'disponivel' })).length > 0;
+    // disponibilidade de troca = existe algum veículo sem motorista
+    const trocaDisponivel = (await api.listVehicles()).some((v) => !v.client_id);
     // intervalo de revisão conforme a marca
     const revLabel = /byd/i.test(vehicle.brand || '') ? 'Após 20.000 km' : 'Após 10.000 km';
-    // revisões já feitas (revisão do veículo concluída)
+    // histórico: revisões E trocas de peça por desgaste concluídas
     const maints = await api.listMaintenances({ vehicle_id: vehicle.id });
     const revisoes = maints
-      .filter((m) => m.status === 'concluida' && (m.category === 'completa' || /revis/i.test(m.type || '')))
+      .filter((m) => m.status === 'concluida')
       .sort((a, b) => (b.done_date || b.scheduled_date || '').localeCompare(a.done_date || a.scheduled_date || ''));
 
     shell.content.innerHTML = `
@@ -353,13 +354,14 @@ export async function renderCliente(root, user, onLogout) {
             </div>
 
             <div class="panel glass">
-              <div class="panel-head"><span class="panel-ico">${icon('check')}</span><h3>Revisões feitas</h3></div>
+              <div class="panel-head"><span class="panel-ico">${icon('check')}</span><h3>Revisões ou Troca de peças de desgaste feitas</h3></div>
               ${revisoes.length ? revisoes.map((m) => `
                 <div class="file-row">
-                  <div class="file-ico blue">${icon('wrench')}</div>
+                  <div class="file-ico ${m.category === 'desgaste' ? '' : 'blue'}">${icon(m.category === 'desgaste' ? 'alert' : 'wrench')}</div>
                   <div class="f-meta"><div class="f-name">${escapeHtml(m.type || 'Revisão do veículo')}</div>
-                    <div class="f-sub">Feita em ${fmt.date(m.done_date || m.scheduled_date)}${m.km ? ' · ' + fmt.km(m.km) : ''}</div></div>
-                </div>`).join('') : `<div class="empty">${icon('info', 'empty-ico')}<p>Nenhuma revisão feita ainda.</p></div>`}
+                    <div class="f-sub">Feita em ${fmt.date(m.done_date || m.scheduled_date)}${m.km ? ' · ' + fmt.km(m.km) : ''}${m.cost ? ' · ' + fmt.money(m.cost) : ''}</div></div>
+                  ${m.done_receipt_path ? `<button class="icon-btn" title="Comprovante do serviço" data-srv="${m.id}">${icon('download')}</button>` : ''}
+                </div>`).join('') : `<div class="empty">${icon('info', 'empty-ico')}<p>Nenhuma revisão ou troca por desgaste feita ainda.</p></div>`}
             </div>
 
             <div class="panel glass">
@@ -375,6 +377,7 @@ export async function renderCliente(root, user, onLogout) {
       const rec = documents.find((x) => x.id === b.dataset.open);
       openFile(await api.fileUrl(rec), rec.file_name || 'documento.pdf');
     });
+    shell.content.querySelectorAll('[data-srv]').forEach((b) => b.onclick = async () => { const m = revisoes.find((x) => x.id === b.dataset.srv); openFile(await api.maintenancePhotoUrl(m, 'done_receipt_path'), m.done_receipt_name || 'comprovante-servico'); });
     const btnTroca = shell.content.querySelector('#btn-troca');
     if (btnTroca && trocaDisponivel) btnTroca.onclick = async () => {
       btnTroca.disabled = true;
@@ -391,8 +394,10 @@ export async function renderCliente(root, user, onLogout) {
     shell.setTitle('Manutenção', 'Solicite manutenção do seu veículo');
     const { vehicle } = await loadAll();
     if (!vehicle) { shell.content.innerHTML = `<div class="panel glass"><div class="empty">${icon('car', 'empty-ico')}<p>Nenhum veículo vinculado à sua conta.</p></div></div>`; return; }
-    const maints = (await api.listMaintenances({ vehicle_id: vehicle.id })).filter((m) => m.status !== 'concluida' || m.requested_by);
-    const agendadas = maints.filter((m) => m.status === 'agendada' && m.requested_by === user.id);
+    const all = await api.listMaintenances({ vehicle_id: vehicle.id });
+    // "Minhas solicitações" mostra só as em andamento (as concluídas vão para a aba Veículo)
+    const minhas = all.filter((m) => m.requested_by === user.id && m.status !== 'concluida');
+    const agendadas = minhas.filter((m) => m.status === 'agendada');
 
     shell.content.innerHTML = `
       <div class="fade-in">
@@ -411,7 +416,7 @@ export async function renderCliente(root, user, onLogout) {
           </div>
           <div class="panel glass">
             <div class="panel-head"><span class="panel-ico">${icon('clock')}</span><h3>Minhas solicitações</h3></div>
-            ${maints.length ? maints.map((m) => {
+            ${minhas.length ? minhas.map((m) => {
                 const goUrl = m.status === 'agendada' ? safeUrl(m.partner_link || (m.partner_location ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(m.partner_location) : '')) : '';
                 return `
               <div class="file-row" style="align-items:flex-start;flex-wrap:wrap;gap:10px">
@@ -424,15 +429,48 @@ export async function renderCliente(root, user, onLogout) {
                 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
                   ${badge(m.status)}
                   ${goUrl ? `<a class="btn btn-blue btn-sm" href="${escapeHtml(goUrl)}" target="_blank" rel="noopener">${icon('map')} Ir até lá</a>` : ''}
+                  ${m.status === 'agendada' ? `<button class="btn btn-green btn-sm" data-confirm="${m.id}">${icon('check')} Confirmar realizada</button>` : ''}
                 </div>
               </div>`;
-              }).join('') : `<div class="empty">${icon('info', 'empty-ico')}<p>Nenhuma solicitação ainda.</p></div>`}
+              }).join('') : `<div class="empty">${icon('info', 'empty-ico')}<p>Nenhuma Solicitação de manutenção em andamento.</p></div>`}
           </div>
         </div>
       </div>`;
 
     shell.content.querySelector('#req-completa').onclick = () => openMaintReq('completa', vehicle, () => go('manutencao'));
     shell.content.querySelector('#req-desgaste').onclick = () => openMaintReq('desgaste', vehicle, () => go('manutencao'));
+    shell.content.querySelectorAll('[data-confirm]').forEach((b) => b.onclick = () => confirmMaintDone(minhas.find((m) => m.id === b.dataset.confirm), () => go('manutencao')));
+  }
+
+  /* motorista confirma a manutenção agendada como realizada, enviando o comprovante e o valor */
+  function confirmMaintDone(m, after) {
+    if (!m) return;
+    const mod = modal({
+      title: 'Confirmar manutenção realizada', icon: 'check',
+      body: `
+        <p class="body-sm" style="margin-bottom:1rem">Confirme que a <strong>${escapeHtml(m.type || 'manutenção')}</strong> foi realizada. Envie o comprovante da concessionária/oficina${m.partner_name ? ` (${escapeHtml(m.partner_name)})` : ''} e, se quiser, informe o valor que ficou o serviço.</p>
+        <div class="field"><label>Valor da manutenção (R$) <span class="muted">(opcional)</span></label><input class="input" type="number" step="0.01" min="0" id="cm-cost" value="${m.cost || ''}" placeholder="Ex.: 350,00"></div>
+        <div class="field" style="margin-bottom:0"><label>Comprovante do serviço (PDF ou foto)</label>
+          <div class="upload-mini" id="cm-drop">${icon('upload')} Anexar o comprovante da oficina</div>
+          <input type="file" id="cm-file" accept="application/pdf,image/*" hidden></div>`,
+      footer: `<button class="btn btn-glass" data-cancel>Cancelar</button><button class="btn btn-green" data-save disabled>${icon('check')} Confirmar realizada</button>`,
+    });
+    let file = null;
+    const drop = mod.overlay.querySelector('#cm-drop');
+    const fin = mod.overlay.querySelector('#cm-file');
+    const save = mod.overlay.querySelector('[data-save]');
+    drop.onclick = () => fin.click();
+    fin.onchange = () => { if (fin.files[0]) { file = fin.files[0]; drop.classList.add('has-file'); drop.innerHTML = `${icon('check')} ${escapeHtml(file.name)}`; save.disabled = false; } };
+    mod.overlay.querySelector('[data-cancel]').onclick = mod.close;
+    save.onclick = async () => {
+      if (!file) { toast('Anexe o comprovante do serviço.', 'err'); return; }
+      const cost = mod.overlay.querySelector('#cm-cost').value;
+      save.disabled = true; save.innerHTML = '<span class="spinner" style="width:16px;height:16px"></span> Enviando...';
+      try {
+        await api.confirmMaintenance({ id: m.id, cost, file });
+        mod.close(); toast('Manutenção confirmada! Ela já consta no seu histórico. ✅', 'ok'); after && after();
+      } catch (err) { toast('Erro: ' + err.message, 'err'); save.disabled = false; save.innerHTML = `${icon('check')} Confirmar realizada`; }
+    };
   }
 
   function openMaintReq(category, vehicle, after) {

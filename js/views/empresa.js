@@ -9,7 +9,18 @@ import {
   paymentStatus, todayISO, daysFromToday, escapeHtml, vigencia, safeUrl,
 } from '../ui.js';
 
-const VEHICLE_STATUS = { locado: 'Locado', disponivel: 'Disponível', manutencao: 'Manutenção' };
+const VEHICLE_STATUS = { locado: 'Locado', disponivel: 'Disponível' };
+/* status do veículo é derivado do vínculo: com motorista = locado, senão = disponível */
+const vstatus = (v) => (v && v.client_id) ? 'locado' : 'disponivel';
+
+/* nº de cobranças semanais do próximo dia de pagamento até o fim da vigência */
+function weeksUntilVigencia(weekday, endISO) {
+  if (!endISO) return 12;
+  const d = new Date(); d.setHours(0, 0, 0, 0); while (d.getDay() !== Number(weekday)) d.setDate(d.getDate() + 1);
+  const end = new Date(endISO + 'T00:00:00');
+  if (end < d) return 1;
+  return Math.floor((end - d) / (7 * 86400000)) + 1;
+}
 
 /* máscara de CPF: formata 000.000.000-00 conforme digita */
 function maskCPF(v) {
@@ -81,15 +92,16 @@ export async function renderEmpresa(root, user, onLogout) {
   async function pageDashboard() {
     shell.setTitle('Dashboard', `Visão geral · ${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}`);
     const { vehicles } = await refreshMaps();
+    // garante cobranças de todos os motoristas até o fim da vigência do contrato (idempotente)
+    await Promise.all(Object.keys(clientsMap).map((cid) => api.generateContractCharges(cid).catch(() => {})));
     const [payments, maints] = await Promise.all([api.listPayments(), api.listMaintenances()]);
 
     const month = todayISO().slice(0, 7);
     const recebidoMes = payments.filter((p) => paymentStatus(p) === 'pago' && (p.paid_date || '').slice(0, 7) === month).reduce((s, p) => s + Number(p.amount), 0);
     const aReceber = payments.filter((p) => paymentStatus(p) !== 'pago').reduce((s, p) => s + Number(p.amount), 0);
     const atrasados = payments.filter((p) => paymentStatus(p) === 'atrasado');
-    const locados = vehicles.filter((v) => v.status === 'locado').length;
-    const disponiveis = vehicles.filter((v) => v.status === 'disponivel').length;
-    const emManut = vehicles.filter((v) => v.status === 'manutencao').length;
+    const locados = vehicles.filter((v) => vstatus(v) === 'locado').length;
+    const disponiveis = vehicles.filter((v) => vstatus(v) === 'disponivel').length;
     const manutAbertas = maints.filter((m) => m.status !== 'concluida');
     const taxaOcupacao = vehicles.length ? Math.round((locados / vehicles.length) * 100) : 0;
 
@@ -103,13 +115,15 @@ export async function renderEmpresa(root, user, onLogout) {
 
     const pieData = (mode) => {
       let fatur, manut, seguro;
+      // gasto de manutenção = só as CONCLUÍDAS, pela data em que foram feitas (done_date)
+      const feitas = maints.filter((m) => m.status === 'concluida' && m.done_date);
       if (mode === 'ano') {
         fatur = paidPayments.filter((p) => String(p.paid_date).slice(0, 4) === String(curY)).reduce((s, p) => s + Number(p.amount), 0);
-        manut = maints.filter((m) => String(m.done_date || m.scheduled_date || '').slice(0, 4) === String(curY)).reduce((s, m) => s + Number(m.cost || 0), 0);
+        manut = feitas.filter((m) => String(m.done_date).slice(0, 4) === String(curY)).reduce((s, m) => s + Number(m.cost || 0), 0);
         seguro = monthlyInsurance * monthsElapsed;           // gasto fixo acumulado no ano vigente
       } else {
         fatur = paidPayments.filter((p) => String(p.paid_date).slice(0, 7) === curMonth).reduce((s, p) => s + Number(p.amount), 0);
-        manut = maints.filter((m) => String(m.done_date || m.scheduled_date || '').slice(0, 7) === curMonth).reduce((s, m) => s + Number(m.cost || 0), 0);
+        manut = feitas.filter((m) => String(m.done_date).slice(0, 7) === curMonth).reduce((s, m) => s + Number(m.cost || 0), 0);
         seguro = monthlyInsurance;                            // gasto fixo do mês
       }
       const slices = [
@@ -140,7 +154,7 @@ export async function renderEmpresa(root, user, onLogout) {
           ${kpi('money', 'Faturamento Mensal', fmt.money(recebidoMes), `${payments.filter((p) => paymentStatus(p) === 'pago' && (p.paid_date || '').slice(0, 7) === month).length} pagamentos`, 'up')}
           ${kpi('clock', 'Pagamentos a receber', fmt.money(aReceber), `${atrasados.length} em atraso`, atrasados.length ? 'down' : '')}
           ${kpi('users', 'Motoristas', `${Object.keys(clientsMap).length}`, 'cadastrados')}
-          ${kpi('wrench', 'Manutenções abertas', `${manutAbertas.length}`, `${emManut} veículo(s) parado(s)`)}
+          ${kpi('wrench', 'Manutenções abertas', `${manutAbertas.length}`, `${new Set(manutAbertas.map((m) => m.vehicle_id)).size} veículo(s)`)}
         </div>
 
         <div class="grid-cols grid-2">
@@ -176,13 +190,12 @@ export async function renderEmpresa(root, user, onLogout) {
         <div class="grid-cols grid-2">
           <div class="panel glass">
             <div class="panel-head"><span class="panel-ico">${icon('car')}</span><h3>Status da frota</h3></div>
-            ${fleetBar(locados, disponiveis, emManut, vehicles.length)}
+            ${fleetBar(locados, disponiveis, 0, vehicles.length)}
             <div class="info-list" style="margin-top:1rem">
               <div class="info-row"><span class="k">Total de veículos cadastrados</span><span class="v cell-strong">${vehicles.length}</span></div>
               <div class="info-row"><span class="k">Ocupação</span><span class="v">${taxaOcupacao}%</span></div>
               <div class="info-row"><span class="k">${badge('locado')}</span><span class="v">${locados}</span></div>
               <div class="info-row"><span class="k">${badge('disponivel')}</span><span class="v">${disponiveis}</span></div>
-              <div class="info-row"><span class="k">${badge('manutencao')}</span><span class="v">${emManut}</span></div>
             </div>
           </div>
 
@@ -285,6 +298,8 @@ export async function renderEmpresa(root, user, onLogout) {
   async function pagePagamentos() {
     shell.setTitle('Recebimentos', 'Pagamentos dos motoristas');
     await refreshMaps();
+    // gera cobranças de todos os motoristas até o fim da vigência (idempotente)
+    await Promise.all(Object.keys(clientsMap).map((cid) => api.generateContractCharges(cid).catch(() => {})));
     const payments = await api.listPayments();
     const cfg = await api.getPaymentSettings();
 
@@ -556,6 +571,7 @@ export async function renderEmpresa(root, user, onLogout) {
                   <td>${badge(m.status)}</td>
                   <td class="row-actions">
                     ${(m.photo_path || m.photo_path2 || m.km) ? `<button class="icon-btn" title="Ver anexos do motorista" data-view="${m.id}">${icon('eye')}</button>` : ''}
+                    ${m.done_receipt_path ? `<button class="icon-btn" title="Comprovante do serviço (motorista)" data-srvdoc="${m.id}">${icon('doc')}</button>` : ''}
                     ${m.status !== 'concluida' ? `<button class="icon-btn" title="Concluir" data-done="${m.id}">${icon('check')}</button>` : ''}
                     <button class="icon-btn" title="Editar" data-edit="${m.id}">${icon('edit')}</button>
                     <button class="icon-btn danger" title="Excluir" data-del="${m.id}">${icon('trash')}</button>
@@ -569,6 +585,7 @@ export async function renderEmpresa(root, user, onLogout) {
     shell.content.querySelector('#editar-manut').onclick = () => editMaintenancePicker(outras, () => go('manutencoes'));
     shell.content.querySelectorAll('[data-accept]').forEach((b) => b.onclick = () => scheduleMaintenance(maints.find((m) => m.id === b.dataset.accept), () => go('manutencoes')));
     shell.content.querySelectorAll('[data-view]').forEach((b) => b.onclick = () => viewMaintRequest(maints.find((m) => m.id === b.dataset.view)));
+    shell.content.querySelectorAll('[data-srvdoc]').forEach((b) => b.onclick = async () => { const m = maints.find((x) => x.id === b.dataset.srvdoc); openFile(await api.maintenancePhotoUrl(m, 'done_receipt_path'), m.done_receipt_name || 'comprovante-servico'); });
     shell.content.querySelectorAll('[data-edit]').forEach((b) => b.onclick = () => formManutencao(maints.find((m) => m.id === b.dataset.edit), () => go('manutencoes')));
     shell.content.querySelectorAll('[data-done]').forEach((b) => b.onclick = async () => { const m = maints.find((x) => x.id === b.dataset.done); await api.saveMaintenance({ ...m, status: 'concluida', done_date: todayISO() }); toast('Manutenção concluída', 'ok'); go('manutencoes'); });
     shell.content.querySelectorAll('[data-del]').forEach((b) => b.onclick = () => confirmDialog('Excluir esta manutenção?', async () => { await api.deleteMaintenance(b.dataset.del); toast('Excluída', 'ok'); go('manutencoes'); }));
@@ -721,10 +738,12 @@ export async function renderEmpresa(root, user, onLogout) {
   async function pageCarros() {
     shell.setTitle('Veículos', 'Frota cadastrada');
     const { vehicles } = await refreshMaps();
+    // normaliza status para apenas Locado/Disponível (corrige qualquer 'manutencao' antigo)
+    for (const v of vehicles) { const eff = vstatus(v); if (v.status !== eff) { v.status = eff; try { await api.saveVehicle({ id: v.id, status: eff }); } catch {} } }
     let filter = 'todos';
 
     const render = () => {
-      const list = filter === 'todos' ? vehicles : vehicles.filter((v) => v.status === filter);
+      const list = filter === 'todos' ? vehicles : vehicles.filter((v) => vstatus(v) === filter);
       const grid = shell.content.querySelector('#veh-grid');
       grid.innerHTML = list.length ? list.map((v) => vehicleCard(v)).join('') : emptyBox('Nenhum veículo neste filtro.');
       grid.querySelectorAll('[data-docs]').forEach((b) => b.onclick = () => manageVehicleDocs(vehicles.find((v) => v.id === b.dataset.docs), () => go('carros')));
@@ -737,9 +756,8 @@ export async function renderEmpresa(root, user, onLogout) {
         <div class="panel glass" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
           <div class="seg" id="veh-filter" style="margin:0;flex-wrap:wrap">
             <button data-f="todos" class="active">Todos (${vehicles.length})</button>
-            <button data-f="locado">Locados (${vehicles.filter((v) => v.status === 'locado').length})</button>
-            <button data-f="disponivel">Disponíveis (${vehicles.filter((v) => v.status === 'disponivel').length})</button>
-            <button data-f="manutencao">Manutenção (${vehicles.filter((v) => v.status === 'manutencao').length})</button>
+            <button data-f="locado">Locados (${vehicles.filter((v) => vstatus(v) === 'locado').length})</button>
+            <button data-f="disponivel">Disponíveis (${vehicles.filter((v) => vstatus(v) === 'disponivel').length})</button>
           </div>
           <div class="spacer" style="flex:1"></div>
           <button class="btn btn-blue btn-sm" id="novo-veh">${icon('plus')} Cadastrar veículo</button>
@@ -758,7 +776,7 @@ export async function renderEmpresa(root, user, onLogout) {
       <div class="veh-card glass">
         <div class="veh-thumb">
           <img src="${v.photo_url || 'assets/car-placeholder.png'}" alt="${escapeHtml(v.model)}" onerror="this.onerror=null;this.src='assets/car-placeholder.png'" class="${v.photo_url ? 'veh-photo' : ''}">
-          ${badge(v.status)}
+          ${badge(vstatus(v))}
         </div>
         <div class="veh-body">
           <span class="plate">${escapeHtml(v.plate)}</span>
@@ -832,10 +850,8 @@ export async function renderEmpresa(root, user, onLogout) {
             <div class="field"><label>Valor semanal (R$)</label><input class="input" type="number" step="0.01" name="weekly_value" value="${v?.weekly_value || ''}"></div>
             <div class="field"><label>Gasto com seguro (R$) <span style="color:var(--gray-4);font-weight:500">· só empresa</span></label><input class="input" type="number" step="0.01" min="0" name="insurance_cost" value="${v?.insurance_cost ?? ''}" placeholder="0,00"></div>
             <div class="field"><label>Renavam</label><input class="input" name="renavam" value="${escapeHtml(v?.renavam || '')}"></div>
-            <div class="field"><label>Status</label>
-              <select class="select" name="status">${Object.entries(VEHICLE_STATUS).map(([k, l]) => `<option value="${k}" ${v?.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-            <div class="field"><label>Motorista (se locado)</label>
-              <select class="select" name="client_id"><option value="">— Nenhum —</option>${clients.map((c) => `<option value="${c.id}" ${v?.client_id === c.id ? 'selected' : ''}>${escapeHtml(c.full_name)}</option>`).join('')}</select></div>
+            <div class="field full"><label>Motorista (define o status)</label>
+              <select class="select" name="client_id"><option value="">— Nenhum (Disponível) —</option>${clients.map((c) => `<option value="${c.id}" ${v?.client_id === c.id ? 'selected' : ''}>${escapeHtml(c.full_name)} (Locado)</option>`).join('')}</select></div>
           </div>
           <div class="field" style="margin:.5rem 0 0"><label>Foto do veículo</label>
             <div class="upload-mini ${v?.photo_url ? 'has-file' : ''}" id="veh-photo-drop">${v?.photo_url ? icon('check') + ' Foto adicionada — toque para trocar' : icon('camera') + ' Adicionar foto'}</div>
@@ -859,17 +875,16 @@ export async function renderEmpresa(root, user, onLogout) {
       data.insurance_cost = Number(data.insurance_cost || 0);
       if (!data.client_id) data.client_id = null;
       if (isEdit) data.id = v.id;
-      // Regra: um motorista não pode estar vinculado a dois veículos ao mesmo tempo.
-      // Troca é permitida (só a empresa, por aqui), desde que o novo veículo esteja disponível (não locado).
+      // Status é sempre derivado do vínculo: com motorista = Locado, senão = Disponível.
+      data.status = data.client_id ? 'locado' : 'disponivel';
+      // Regra: um motorista não pode estar vinculado a dois veículos ao mesmo tempo (troca libera o anterior).
       if (data.client_id) {
         const all = await api.listVehicles();
         const already = all.find((x) => x.client_id === data.client_id && x.id !== (v?.id || null));
         if (already) {
           if (!isEdit) { toast('Este motorista já tem um veículo vinculado. Um motorista não pode ter dois veículos.', 'err'); return; }
-          if (v.status !== 'disponivel' && v.client_id !== data.client_id) { toast('Para a troca, o novo veículo precisa estar disponível (não locado).', 'err'); return; }
           await api.saveVehicle({ id: already.id, client_id: null, status: 'disponivel' });  // libera o veículo anterior
         }
-        data.status = 'locado';
       }
       const btn = m.overlay.querySelector('[data-save]'); btn.disabled = true; btn.innerHTML = '<span class="spinner" style="width:16px;height:16px"></span> Salvando...';
       try {
@@ -1030,7 +1045,7 @@ export async function renderEmpresa(root, user, onLogout) {
   /* desvincular / trocar veículo do motorista */
   function manageVehicle(c, myVehs) {
     const current = myVehs[0];
-    const opts = Object.values(vehiclesMap).filter((v) => v.status === 'disponivel' || v.client_id === c.id);
+    const opts = Object.values(vehiclesMap).filter((v) => !v.client_id || v.client_id === c.id);
     const m = modal({
       title: 'Veículo vinculado', icon: 'car',
       body: `
@@ -1136,7 +1151,7 @@ export async function renderEmpresa(root, user, onLogout) {
       if (!s || !e) { toast('Preencha início e término.', 'err'); return; }
       if (e < s) { toast('O término não pode ser antes do início.', 'err'); return; }
       const btn = m.overlay.querySelector('[data-save]'); btn.disabled = true; btn.innerHTML = '<span class="spinner" style="width:16px;height:16px"></span> Salvando...';
-      try { await api.updateContract(ct.id, { start_date: s, end_date: e, signed_date: ct.signed_date || s }); toast('Vigência atualizada.', 'ok'); m.close(); after && after(); }
+      try { await api.updateContract(ct.id, { start_date: s, end_date: e, signed_date: ct.signed_date || s }); if (ct.client_id) { try { await api.generateContractCharges(ct.client_id); } catch {} } toast('Vigência atualizada.', 'ok'); m.close(); after && after(); }
       catch (err) { toast('Erro: ' + err.message, 'err'); btn.disabled = false; btn.innerHTML = `${icon('check')} Salvar`; }
     };
   }
@@ -1168,7 +1183,7 @@ export async function renderEmpresa(root, user, onLogout) {
       const e = m.overlay.querySelector('#ac-end').value || end6;
       if (e < s) { toast('O término não pode ser antes do início.', 'err'); return; }
       const btn = m.overlay.querySelector('[data-save]'); btn.disabled = true; btn.innerHTML = '<span class="spinner" style="width:16px;height:16px"></span> Enviando...';
-      try { await api.uploadContract({ file, client_id: c.id, vehicle_id: veh?.id || null, title: `Contrato de Locação — ${c.full_name}`, signed_date: s, start_date: s, end_date: e, status: 'vigente' }); toast('Contrato enviado', 'ok'); m.close(); after && after(); }
+      try { await api.uploadContract({ file, client_id: c.id, vehicle_id: veh?.id || null, title: `Contrato de Locação — ${c.full_name}`, signed_date: s, start_date: s, end_date: e, status: 'vigente' }); try { await api.generateContractCharges(c.id); } catch {} toast('Contrato enviado', 'ok'); m.close(); after && after(); }
       catch (err) { toast('Erro: ' + err.message, 'err'); btn.disabled = false; btn.innerHTML = `${icon('upload')} Enviar`; }
     };
   }
@@ -1189,7 +1204,7 @@ export async function renderEmpresa(root, user, onLogout) {
             <div class="field"><label>E-mail (login)</label><input class="input" type="email" name="email" required placeholder="motorista@email.com"></div>
             <div class="field"><label>Cidade</label><input class="input" name="city" placeholder="Brasília/DF"></div>
             <div class="field full"><label>Vincular veículo</label>
-              <select class="select" name="vehicle_id"><option value="">— Nenhum por enquanto —</option>${vehicles.map((v) => `<option value="${v.id}">${escapeHtml(v.brand + ' ' + v.model + ' · ' + v.plate)}${v.status !== 'disponivel' ? ' (em uso)' : ''}</option>`).join('')}</select></div>
+              <select class="select" name="vehicle_id"><option value="">— Nenhum por enquanto —</option>${vehicles.map((v) => `<option value="${v.id}">${escapeHtml(v.brand + ' ' + v.model + ' · ' + v.plate)}${vstatus(v) !== 'disponivel' ? ' (em uso)' : ''}</option>`).join('')}</select></div>
           </div>
 
           <div class="eyebrow" style="margin:.7rem 0 .5rem">Pagamento semanal</div>
@@ -1238,16 +1253,17 @@ export async function renderEmpresa(root, user, onLogout) {
       if (!f.reportValidity()) return;
       const data = Object.fromEntries(new FormData(f));
       if (!toggle.checked) { data.second_name = null; data.second_cpf = null; data.second_phone = null; }
-      data.weeks = 12;
+      const vigEnd = m.overlay.querySelector('#mot-contract-end').value || end6;
+      data.weeks = weeksUntilVigencia(data.pay_weekday, vigEnd);   // cobranças até o fim da vigência
       const btn = m.overlay.querySelector('[data-save]'); btn.disabled = true; btn.innerHTML = '<span class="spinner" style="width:16px;height:16px"></span> Cadastrando...';
       try {
         const cred = await api.createDriver(data);
         if (contractFile && cred.user_id) {
           const start = m.overlay.querySelector('#mot-contract-start').value || todayISO();
-          const end = m.overlay.querySelector('#mot-contract-end').value || end6;
-          try { await api.uploadContract({ file: contractFile, client_id: cred.user_id, vehicle_id: data.vehicle_id || null, title: `Contrato de Locação — ${data.full_name}`, signed_date: start, start_date: start, end_date: end, status: 'vigente' }); }
+          try { await api.uploadContract({ file: contractFile, client_id: cred.user_id, vehicle_id: data.vehicle_id || null, title: `Contrato de Locação — ${data.full_name}`, signed_date: start, start_date: start, end_date: vigEnd, status: 'vigente' }); }
           catch (e) { toast('Motorista criado, mas o contrato falhou: ' + e.message, 'err'); }
         }
+        if (cred.user_id) { try { await api.generateContractCharges(cred.user_id); } catch {} }
         m.close(); showCredentials(cred, data.full_name, data.phone);
         after && after();
       } catch (err) { toast('Erro: ' + err.message, 'err'); btn.disabled = false; btn.innerHTML = `${icon('check')} Cadastrar`; }

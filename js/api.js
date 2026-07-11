@@ -221,6 +221,32 @@ const DemoBackend = {
     saveDB(db); return rec;
   },
   async maintenancePhotoUrl(record, which = 'photo_path') { const p = record[which]; return p ? (loadFiles()[p] || null) : null; },
+  async confirmMaintenance({ id, cost, file }) {
+    const db = loadDB(); const m = db.maintenances.find((x) => x.id === id); if (!m) return null;
+    if (file) { const files = loadFiles(); const p = 'mdone-' + id; files[p] = await fileToDataURL(file); saveFiles(files); m.done_receipt_path = p; m.done_receipt_name = file.name; }
+    m.status = 'concluida'; m.done_date = isoDate(new Date());
+    if (cost != null && cost !== '') m.cost = Number(cost);
+    saveDB(db); return m;
+  },
+  /* gera cobranças semanais até o fim da vigência do contrato do motorista (idempotente) */
+  async generateContractCharges(client_id) {
+    const db = loadDB();
+    const active = db.contracts.filter((c) => c.client_id === client_id && c.status !== 'substituido' && c.status !== 'encerrado')
+      .sort((a, b) => (b.end_date || '').localeCompare(a.end_date || ''))[0];
+    if (!active || !active.end_date) return { created: 0 };
+    const veh = db.vehicles.find((v) => v.client_id === client_id);
+    const existing = db.payments.filter((p) => p.client_id === client_id);
+    const weekly = Number(veh?.weekly_value || (existing.find((p) => p.amount) || {}).amount || 0);
+    if (!weekly) return { created: 0 };
+    const sorted = existing.slice().sort((a, b) => a.due_date.localeCompare(b.due_date));
+    const weekday = sorted.length ? new Date(sorted[0].due_date + 'T00:00:00').getDay() : 5;
+    const dueSet = new Set(existing.map((p) => p.due_date));
+    const d = new Date(); d.setHours(0, 0, 0, 0); while (d.getDay() !== weekday) d.setDate(d.getDate() + 1);
+    const end = new Date(active.end_date + 'T00:00:00');
+    let created = 0, week = existing.length;
+    while (d <= end) { const iso = isoDate(d); if (!dueSet.has(iso)) { db.payments.push({ id: uid('p'), client_id, vehicle_id: veh?.id || null, amount: weekly, due_date: iso, paid_date: null, status: 'pendente', method: 'Pix', week_ref: ++week }); created++; } d.setDate(d.getDate() + 7); }
+    saveDB(db); return { created };
+  },
 
   async listContracts(filter = {}) {
     let c = loadDB().contracts;
@@ -467,6 +493,37 @@ const SupabaseBackend = {
     const c = await sb();
     const { data } = await c.storage.from('maintenance').createSignedUrl(p, 3600);
     return data?.signedUrl || null;
+  },
+  async confirmMaintenance({ id, cost, file }) {
+    const c = await sb();
+    const { data: { session } } = await c.auth.getSession();
+    let path = null;
+    if (file) { path = `${session.user.id}/${Date.now()}-done-${file.name}`; unwrap(await c.storage.from('maintenance').upload(path, file)); }
+    const upd = { status: 'concluida', done_date: isoDate(new Date()) };
+    if (cost != null && cost !== '') upd.cost = Number(cost);
+    if (path) { upd.done_receipt_path = path; upd.done_receipt_name = file.name; }
+    try { return unwrap(await c.from('maintenances').update(upd).eq('id', id).select().single()); }
+    catch (e) { const { done_receipt_path, done_receipt_name, ...rest } = upd; return unwrap(await c.from('maintenances').update(rest).eq('id', id).select().single()); }
+  },
+  async generateContractCharges(client_id) {
+    const c = await sb();
+    const contracts = unwrap(await c.from('contracts').select('*').eq('client_id', client_id));
+    const active = contracts.filter((x) => x.status !== 'substituido' && x.status !== 'encerrado').sort((a, b) => (b.end_date || '').localeCompare(a.end_date || ''))[0];
+    if (!active || !active.end_date) return { created: 0 };
+    const vehs = unwrap(await c.from('vehicles').select('*').eq('client_id', client_id));
+    const veh = vehs[0];
+    const existing = unwrap(await c.from('payments').select('*').eq('client_id', client_id));
+    const weekly = Number(veh?.weekly_value || (existing.find((p) => p.amount) || {}).amount || 0);
+    if (!weekly) return { created: 0 };
+    const sorted = existing.slice().sort((a, b) => a.due_date.localeCompare(b.due_date));
+    const weekday = sorted.length ? new Date(sorted[0].due_date + 'T00:00:00').getDay() : 5;
+    const dueSet = new Set(existing.map((p) => p.due_date));
+    const d = new Date(); d.setHours(0, 0, 0, 0); while (d.getDay() !== weekday) d.setDate(d.getDate() + 1);
+    const end = new Date(active.end_date + 'T00:00:00');
+    const rows = []; let week = existing.length;
+    while (d <= end) { const iso = isoDate(d); if (!dueSet.has(iso)) rows.push({ client_id, vehicle_id: veh?.id || null, amount: weekly, due_date: iso, status: 'pendente', method: 'Pix', week_ref: ++week }); d.setDate(d.getDate() + 7); }
+    if (rows.length) unwrap(await c.from('payments').insert(rows));
+    return { created: rows.length };
   },
 
   async listContracts(filter = {}) {
