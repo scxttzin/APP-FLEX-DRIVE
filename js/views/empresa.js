@@ -45,7 +45,7 @@ const WEEKDAYS = [
 export async function renderEmpresa(root, user, onLogout) {
   const nav = [
     { key: 'dashboard',   label: 'Dashboard',     icon: 'dashboard' },
-    { key: 'pagamentos',  label: 'Recebimentos',  icon: 'payments' },
+    { key: 'pagamentos',  label: 'Pagamentos',    icon: 'payments' },
     { key: 'manutencoes', label: 'Manutenções',   icon: 'wrench' },
     { key: 'carros',      label: 'Veículos',      icon: 'car' },
     { key: 'motoristas',  label: 'Motoristas',    icon: 'users' },
@@ -98,7 +98,7 @@ export async function renderEmpresa(root, user, onLogout) {
 
     const month = todayISO().slice(0, 7);
     const recebidoMes = payments.filter((p) => paymentStatus(p) === 'pago' && (p.paid_date || '').slice(0, 7) === month).reduce((s, p) => s + Number(p.amount), 0);
-    const aReceber = payments.filter((p) => paymentStatus(p) !== 'pago').reduce((s, p) => s + Number(p.amount), 0);
+    const aReceber = payments.filter((p) => paymentStatus(p) !== 'pago' && String(p.due_date).slice(0, 7) === month).reduce((s, p) => s + Number(p.amount), 0);
     const atrasados = payments.filter((p) => paymentStatus(p) === 'atrasado');
     const locados = vehicles.filter((v) => vstatus(v) === 'locado').length;
     const disponiveis = vehicles.filter((v) => vstatus(v) === 'disponivel').length;
@@ -153,7 +153,7 @@ export async function renderEmpresa(root, user, onLogout) {
         <div class="kpi-grid">
           ${kpi('money', 'Faturamento Mensal', fmt.money(recebidoMes), `${payments.filter((p) => paymentStatus(p) === 'pago' && (p.paid_date || '').slice(0, 7) === month).length} pagamentos`, 'up')}
           ${kpi('clock', 'Pagamentos a receber', fmt.money(aReceber), `${atrasados.length} em atraso`, atrasados.length ? 'down' : '')}
-          ${kpi('users', 'Motoristas', `${Object.keys(clientsMap).length}`, 'cadastrados')}
+          ${kpi('users', 'Motoristas Cadastrados', `${Object.keys(clientsMap).length}`, 'no total')}
           ${kpi('wrench', 'Manutenções abertas', `${manutAbertas.length}`, `${new Set(manutAbertas.map((m) => m.vehicle_id)).size} veículo(s)`)}
         </div>
 
@@ -296,27 +296,50 @@ export async function renderEmpresa(root, user, onLogout) {
 
   /* ════════════ RECEBIMENTOS ════════════ */
   async function pagePagamentos() {
-    shell.setTitle('Recebimentos', 'Pagamentos dos motoristas');
+    shell.setTitle('Pagamentos', 'Pagamentos dos motoristas');
     await refreshMaps();
     // gera cobranças de todos os motoristas até o fim da vigência (idempotente)
     await Promise.all(Object.keys(clientsMap).map((cid) => api.generateContractCharges(cid).catch(() => {})));
-    const payments = await api.listPayments();
+    const [payments, maints] = await Promise.all([api.listPayments(), api.listMaintenances()]);
     const cfg = await api.getPaymentSettings();
 
-    const pagos = payments.filter((p) => paymentStatus(p) === 'pago').length;
-    const pend = payments.filter((p) => paymentStatus(p) === 'pendente').length;
-    const atras = payments.filter((p) => paymentStatus(p) === 'atrasado').length;
+    const monthlyInsurance = Object.values(vehiclesMap).reduce((s, v) => s + Number(v.insurance_cost || 0), 0);
+    const paidP = payments.filter((p) => paymentStatus(p) === 'pago' && p.paid_date);
+    const doneM = maints.filter((m) => m.status === 'concluida' && m.done_date);
+    const curMonth = todayISO().slice(0, 7); const curY = String(new Date().getFullYear());
+    const monthsElapsed = new Date().getMonth() + 1;
     const analise = payments.filter((p) => paymentStatus(p) === 'em_analise');
+
+    // KPIs financeiros por período (Mês atual / Ano)
+    const renderPagKpis = (mode) => {
+      const inPer = (dt) => mode === 'ano' ? String(dt).slice(0, 4) === curY : String(dt).slice(0, 7) === curMonth;
+      const fatur = paidP.filter((p) => inPer(p.paid_date)).reduce((s, p) => s + Number(p.amount), 0);
+      const manut = doneM.filter((m) => inPer(m.done_date)).reduce((s, m) => s + Number(m.cost || 0), 0);
+      const seguro = mode === 'ano' ? monthlyInsurance * monthsElapsed : monthlyInsurance;
+      const gastos = manut + seguro;
+      const liquida = fatur - gastos;
+      const atrasadosPer = payments.filter((p) => paymentStatus(p) === 'atrasado' && inPer(p.due_date));
+      const atrasVal = atrasadosPer.reduce((s, p) => s + Number(p.amount), 0);
+      const pendPer = payments.filter((p) => paymentStatus(p) === 'pendente' && inPer(p.due_date)).length;
+      const box = shell.content.querySelector('#pag-kpis'); if (!box) return;
+      box.innerHTML = `
+        ${kpi('money', 'Faturamento Mensal', fmt.money(fatur), mode === 'ano' ? 'recebido no ano' : 'recebido no mês', 'up')}
+        ${kpi('money', 'Receita líquida', fmt.money(liquida), 'Faturamento − Gastos', liquida < 0 ? 'down' : 'up')}
+        ${kpi('wrench', 'Operacional (Gastos)', fmt.money(gastos), 'Manutenções e Seguros', gastos ? 'down' : '')}
+        ${kpi('alert', 'Pagamentos atrasados', fmt.money(atrasVal), `${atrasadosPer.length} cobrança(s) a receber`, atrasadosPer.length ? 'down' : '')}
+        ${kpi('eye', 'Em análise', `${analise.length}`, 'comprovantes a confirmar')}
+        ${kpi('clock', 'Pendentes', `${pendPer}`, mode === 'ano' ? 'no ano vigente' : 'no mês atual')}`;
+    };
 
     shell.content.innerHTML = `
       <div class="fade-in">
         ${analise.length ? `<div class="alert alert-info show" style="margin-bottom:1.2rem;display:flex;align-items:center;gap:10px">${icon('bell')} <span><strong>${analise.length} comprovante(s)</strong> aguardando sua confirmação.</span></div>` : ''}
-        <div class="kpi-grid">
-          ${kpi('check', 'Pagos', `${pagos}`, fmt.money(payments.filter((p) => paymentStatus(p) === 'pago').reduce((s, p) => s + +p.amount, 0)))}
-          ${kpi('eye', 'Em análise', `${analise.length}`, 'comprovantes a confirmar')}
-          ${kpi('clock', 'Pendentes', `${pend}`, 'aguardando')}
-          ${kpi('alert', 'Atrasados', `${atras}`, 'requer atenção')}
+        <div class="panel glass" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;padding:.75rem 1.2rem;margin-bottom:1rem">
+          <div style="font-weight:700">Resumo financeiro</div>
+          <div class="spacer" style="flex:1"></div>
+          <div class="seg seg-sm chart-seg" id="pag-seg"><button data-m="mes" class="active">Mês atual</button><button data-m="ano">Ano</button></div>
         </div>
+        <div class="kpi-grid" id="pag-kpis"></div>
         <div class="panel glass cobr-panel">
           <div class="panel-head"><span class="panel-ico">${icon('pix')}</span><h3>Método de cobrança</h3></div>
           <p class="body-sm" style="margin-bottom:.7rem">Chaves Pix de cobrança — cada uma pode ser vinculada a um motorista na aba <strong>Motoristas</strong>.</p>
@@ -347,6 +370,11 @@ export async function renderEmpresa(root, user, onLogout) {
           <div id="rcpt-groups"></div>
         </div>
       </div>`;
+
+    // KPIs financeiros com seletor Mês atual / Ano
+    renderPagKpis('mes');
+    const pagSeg = shell.content.querySelector('#pag-seg');
+    pagSeg.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; pagSeg.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x === b)); renderPagKpis(b.dataset.m); });
 
     setupCobranca(cfg);
     shell.content.querySelector('#novo-plano').onclick = () => formPlano(() => go('pagamentos'));
