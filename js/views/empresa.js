@@ -98,10 +98,11 @@ export async function renderEmpresa(root, user, onLogout) {
     const gastoManut = maints.reduce((s, m) => s + Number(m.cost || 0), 0);
     const gastoSeguro = vehicles.reduce((s, v) => s + Number(v.insurance_cost || 0), 0);
     const pieSlices = [
-      { label: 'Faturamento', value: faturamentoTotal, color: 'var(--blue)' },
-      { label: 'Manutenção', value: gastoManut, color: 'var(--amber)' },
-      { label: 'Seguro', value: gastoSeguro, color: '#8B5CF6' },
+      { label: 'Faturamento', value: faturamentoTotal, c1: '#34D399', c2: '#16A34A' },
+      { label: 'Manutenção', value: gastoManut, c1: '#FBBF24', c2: '#D97706' },
+      { label: 'Seguro', value: gastoSeguro, c1: '#A78BFA', c2: '#7C3AED' },
     ];
+    const pieTotal = faturamentoTotal + gastoManut + gastoSeguro;
     const barras = revenueBuckets(payments);
 
     // só os recebimentos que vencem nos próximos 14 dias (inclui os já atrasados, que ainda precisam ser pagos)
@@ -122,14 +123,15 @@ export async function renderEmpresa(root, user, onLogout) {
             ${faturamentoTotal || gastoManut || gastoSeguro ? `
               <div class="chart-pie-card" id="pie-card">
                 ${donutChart(pieSlices)}
+                <div class="chart-total">Total <strong>${fmt.money(pieTotal)}</strong></div>
                 <div class="chart-legend chart-legend-below">
-                  ${pieSlices.map((s, i) => `<button type="button" class="cl-item" data-i="${i}"><span class="cl-dot" style="background:${s.color}"></span><span class="cl-lbl">${s.label}</span><span class="cl-val mono">${fmt.money(s.value)}</span></button>`).join('')}
+                  ${pieSlices.map((s, i) => `<button type="button" class="cl-item" data-i="${i}"><span class="cl-dot" style="background:linear-gradient(135deg,${s.c1},${s.c2})"></span><span class="cl-lbl">${s.label}</span><span class="cl-val mono">${fmt.money(s.value)}</span></button>`).join('')}
                 </div>
               </div>` : emptyBox('Sem dados de faturamento ainda.')}
           </div>
           <div class="panel glass">
-            <div class="panel-head"><span class="panel-ico">${icon('money')}</span><h3>Recebido por ${barras.periodo}</h3></div>
-            ${barras.bars.length ? barChart(barras.bars) : emptyBox('Sem recebimentos registrados ainda.')}
+            <div class="panel-head"><span class="panel-ico">${icon('car')}</span><h3>Trajeto de recebimentos · por ${barras.periodo}</h3></div>
+            ${barras.bars.length ? routeChart(barras.bars) : emptyBox('Sem recebimentos registrados ainda.')}
           </div>
         </div>
 
@@ -195,7 +197,7 @@ export async function renderEmpresa(root, user, onLogout) {
         pieCard.querySelectorAll('.cl-item').forEach((el) => el.classList.toggle('active', Number(el.dataset.i) === i));
       };
       const reset = () => {
-        clbl.textContent = 'Total'; cval.textContent = svg.dataset.total;
+        clbl.textContent = ''; cval.textContent = '';
         slicesEls.forEach((el) => { el.style.opacity = '1'; });
         pieCard.querySelectorAll('.cl-item').forEach((el) => el.classList.remove('active'));
       };
@@ -1473,16 +1475,18 @@ export async function renderEmpresa(root, user, onLogout) {
   function emptyBox(msg) { return `<div class="empty">${icon('info', 'empty-ico')}<p>${escapeHtml(msg)}</p></div>`; }
 
   /* ── Gráficos (SVG/CSS, sem biblioteca) ── */
-  // Donut interativo: mostra o valor da fatia no centro ao passar o mouse
+  // Donut interativo com gradientes: o centro fica vazio e só mostra o valor da fatia no hover
   function donutChart(slices) {
     const total = slices.reduce((s, x) => s + Number(x.value || 0), 0);
-    const R = 82, r = 52, cx = 95, cy = 95, size = 190;
+    const R = 84, r = 54, cx = 95, cy = 95, size = 190;
     if (total <= 0) return '';
+    const defs = slices.map((s, i) => `<linearGradient id="pie-g${i}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${s.c1}"/><stop offset="1" stop-color="${s.c2}"/></linearGradient>`).join('')
+      + `<filter id="pie-shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(15,23,42,0.18)"/></filter>`;
     const nonZero = slices.filter((s) => s.value > 0);
     let arcs;
     if (nonZero.length === 1) {
       const i = slices.indexOf(nonZero[0]);
-      arcs = `<circle class="pie-slice" data-i="${i}" cx="${cx}" cy="${cy}" r="${(R + r) / 2}" fill="none" stroke="${nonZero[0].color}" stroke-width="${R - r}"><title>${escapeHtml(nonZero[0].label)}: ${fmt.money(nonZero[0].value)}</title></circle>`;
+      arcs = `<circle class="pie-slice" data-i="${i}" cx="${cx}" cy="${cy}" r="${(R + r) / 2}" fill="none" stroke="url(#pie-g${i})" stroke-width="${R - r}"><title>${escapeHtml(nonZero[0].label)}: ${fmt.money(nonZero[0].value)}</title></circle>`;
     } else {
       let a0 = -Math.PI / 2;
       arcs = slices.map((s, i) => {
@@ -1492,14 +1496,44 @@ export async function renderEmpresa(root, user, onLogout) {
         const p = (rad, ang) => `${(cx + rad * Math.cos(ang)).toFixed(2)} ${(cy + rad * Math.sin(ang)).toFixed(2)}`;
         const d = `M${p(R, a0)} A${R} ${R} 0 ${large} 1 ${p(R, a1)} L${p(r, a1)} A${r} ${r} 0 ${large} 0 ${p(r, a0)} Z`;
         a0 = a1;
-        return `<path class="pie-slice" data-i="${i}" d="${d}" fill="${s.color}"><title>${escapeHtml(s.label)}: ${fmt.money(s.value)}</title></path>`;
+        return `<path class="pie-slice" data-i="${i}" d="${d}" fill="url(#pie-g${i})" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"><title>${escapeHtml(s.label)}: ${fmt.money(s.value)}</title></path>`;
       }).join('');
     }
-    return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" class="chart-pie" data-total="${escapeHtml(fmt.money(total))}">
-      ${arcs}
-      <text x="${cx}" y="${cy - 7}" text-anchor="middle" class="pie-center-lbl">Total</text>
-      <text x="${cx}" y="${cy + 15}" text-anchor="middle" class="pie-center-val">${escapeHtml(fmt.money(total))}</text>
+    return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" class="chart-pie">
+      <defs>${defs}</defs>
+      <g filter="url(#pie-shadow)">${arcs}</g>
+      <text x="${cx}" y="${cy - 4}" text-anchor="middle" class="pie-center-lbl"></text>
+      <text x="${cx}" y="${cy + 16}" text-anchor="middle" class="pie-center-val"></text>
     </svg>`;
+  }
+
+  // Gráfico de "trajeto" (estilo Uber): recebido por mês/ano ao longo de uma rota
+  function routeChart(bars) {
+    const W = 340, H = 190, padX = 30, padTop = 40, padBot = 34;
+    const n = bars.length;
+    const max = Math.max(...bars.map((b) => b.value), 1);
+    const min = Math.min(...bars.map((b) => b.value), 0);
+    const xs = bars.map((_, i) => (n === 1 ? W / 2 : padX + i * (W - 2 * padX) / (n - 1)));
+    const yOf = (v) => { const span = (max - min) || 1; return padTop + (1 - (v - min) / span) * (H - padTop - padBot); };
+    const ys = bars.map((b) => yOf(b.value));
+    let d = `M ${xs[0]} ${ys[0]}`;
+    for (let i = 1; i < n; i++) { const xc = (xs[i - 1] + xs[i]) / 2; d += ` C ${xc} ${ys[i - 1]}, ${xc} ${ys[i]}, ${xs[i]} ${ys[i]}`; }
+    const money = (v) => (v >= 1000 ? 'R$' + (v / 1000).toFixed(1).replace('.', ',') + 'k' : fmt.money(v));
+    const dots = bars.map((b, i) => (i === 0 || i === n - 1) ? '' : `<circle cx="${xs[i]}" cy="${ys[i]}" r="4.5" class="route-dot"/>`).join('');
+    const vals = bars.map((b, i) => `<text x="${xs[i]}" y="${ys[i] - 13}" text-anchor="middle" class="route-val">${money(b.value)}</text>`).join('');
+    const labels = bars.map((b, i) => `<text x="${xs[i]}" y="${H - 10}" text-anchor="middle" class="route-lbl">${escapeHtml(b.label)}</text>`).join('');
+    // partida (pino verde) e chegada (carrinho azul)
+    const startPin = `<circle cx="${xs[0]}" cy="${ys[0]}" r="6" fill="var(--green)" stroke="#fff" stroke-width="2.5"/>`;
+    const cx = xs[n - 1], cy = ys[n - 1];
+    const car = `<g transform="translate(${cx - 13},${cy - 13})">
+      <circle cx="13" cy="13" r="13" fill="url(#route-grad)" stroke="#fff" stroke-width="2"/>
+      <g transform="translate(3,3.5) scale(0.8)" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 13l1.5-4.5A2 2 0 0 1 8.4 7h7.2a2 2 0 0 1 1.9 1.5L19 13M5 13h14v4H5v-4Z"/><circle cx="8" cy="17" r="1.4"/><circle cx="16" cy="17" r="1.4"/></g></g>`;
+    return `<div class="route-wrap"><svg viewBox="0 0 ${W} ${H}" class="route-svg">
+      <defs><linearGradient id="route-grad" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2563EB"/><stop offset="1" stop-color="#16A34A"/></linearGradient></defs>
+      <path d="${d}" fill="none" stroke="url(#route-grad)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" class="route-line"/>
+      ${dots}${startPin}${car}${vals}${labels}
+    </svg></div>`;
   }
 
   // Torres: recebido por mês/ano
