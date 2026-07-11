@@ -436,6 +436,9 @@ table.tbl td.row-actions .btn { flex-shrink: 0; }
 .route-dot { fill: #fff; stroke: var(--blue); stroke-width: 2.5; }
 .route-val { font-size: 10px; font-weight: 800; fill: var(--gray-1); }
 .route-lbl { font-size: 9.5px; font-weight: 600; fill: var(--gray-4); text-transform: capitalize; }
+/* seletor Mês/Ano dos gráficos */
+.seg.seg-sm { margin: 0; flex-shrink: 0; }
+.seg.seg-sm button { padding: 0.32rem 0.7rem; font-size: 0.76rem; }
 
 .rcpt-filter { flex: 0 1 220px; max-width: 220px; width: auto; }
 

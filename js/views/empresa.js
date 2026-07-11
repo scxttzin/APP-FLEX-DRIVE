@@ -93,17 +93,43 @@ export async function renderEmpresa(root, user, onLogout) {
     const manutAbertas = maints.filter((m) => m.status !== 'concluida');
     const taxaOcupacao = vehicles.length ? Math.round((locados / vehicles.length) * 100) : 0;
 
-    // Gráficos: faturamento (recebido) x gastos (manutenção + seguro) e evolução por período
-    const faturamentoTotal = payments.filter((p) => paymentStatus(p) === 'pago').reduce((s, p) => s + Number(p.amount), 0);
-    const gastoManut = maints.reduce((s, m) => s + Number(m.cost || 0), 0);
-    const gastoSeguro = vehicles.reduce((s, v) => s + Number(v.insurance_cost || 0), 0);
-    const pieSlices = [
-      { label: 'Faturamento', value: faturamentoTotal, c1: '#34D399', c2: '#16A34A' },
-      { label: 'Manutenção', value: gastoManut, c1: '#FBBF24', c2: '#D97706' },
-      { label: 'Seguro', value: gastoSeguro, c1: '#A78BFA', c2: '#7C3AED' },
-    ];
-    const pieTotal = faturamentoTotal + gastoManut + gastoSeguro;
-    const barras = revenueBuckets(payments);
+    // Gráficos (seletor Mês/Ano). Seguro = soma do valor registrado em cada carro (gasto fixo mensal).
+    const curY = new Date().getFullYear();
+    const curMonth = todayISO().slice(0, 7);
+    const monthsElapsed = new Date().getMonth() + 1;
+    const monthlyInsurance = vehicles.reduce((s, v) => s + Number(v.insurance_cost || 0), 0);
+    const paidPayments = payments.filter((p) => paymentStatus(p) === 'pago' && p.paid_date);
+    const mNames = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+    const pieData = (mode) => {
+      let fatur, manut, seguro;
+      if (mode === 'ano') {
+        fatur = paidPayments.filter((p) => String(p.paid_date).slice(0, 4) === String(curY)).reduce((s, p) => s + Number(p.amount), 0);
+        manut = maints.filter((m) => String(m.done_date || m.scheduled_date || '').slice(0, 4) === String(curY)).reduce((s, m) => s + Number(m.cost || 0), 0);
+        seguro = monthlyInsurance * monthsElapsed;           // gasto fixo acumulado no ano vigente
+      } else {
+        fatur = paidPayments.filter((p) => String(p.paid_date).slice(0, 7) === curMonth).reduce((s, p) => s + Number(p.amount), 0);
+        manut = maints.filter((m) => String(m.done_date || m.scheduled_date || '').slice(0, 7) === curMonth).reduce((s, m) => s + Number(m.cost || 0), 0);
+        seguro = monthlyInsurance;                            // gasto fixo do mês
+      }
+      const slices = [
+        { label: 'Faturamento', value: fatur, c1: '#34D399', c2: '#16A34A' },
+        { label: 'Manutenção', value: manut, c1: '#FBBF24', c2: '#D97706' },
+        { label: 'Seguro', value: seguro, c1: '#A78BFA', c2: '#7C3AED' },
+      ];
+      return { slices, total: fatur + manut + seguro };
+    };
+    const routeData = (mode) => {
+      const acc = {};
+      if (mode === 'ano') {
+        paidPayments.filter((p) => String(p.paid_date).slice(0, 4) === String(curY)).forEach((p) => { const k = String(p.paid_date).slice(0, 7); acc[k] = (acc[k] || 0) + Number(p.amount); });
+        return Object.keys(acc).sort().map((k) => ({ label: mNames[Number(k.slice(5, 7)) - 1], value: acc[k] }));
+      }
+      paidPayments.filter((p) => String(p.paid_date).slice(0, 7) === curMonth).forEach((p) => { const k = String(p.paid_date).slice(0, 10); acc[k] = (acc[k] || 0) + Number(p.amount); });
+      return Object.keys(acc).sort().map((k) => ({ label: k.slice(8, 10) + '/' + k.slice(5, 7), value: acc[k] }));
+    };
+    const startBox = () => `<div class="empty">${icon('money', 'empty-ico')}<p>Comece seu faturamento para gerar dados.</p></div>`;
+    const chartSeg = (key) => `<div class="seg seg-sm chart-seg" data-chart="${key}"><button data-m="mes" class="active">Mês</button><button data-m="ano">Ano</button></div>`;
 
     // só os recebimentos que vencem nos próximos 14 dias (inclui os já atrasados, que ainda precisam ser pagos)
     const proximos = payments.filter((p) => paymentStatus(p) !== 'pago' && daysFromToday(p.due_date) <= 14).sort((a, b) => a.due_date.localeCompare(b.due_date));
@@ -119,19 +145,12 @@ export async function renderEmpresa(root, user, onLogout) {
 
         <div class="grid-cols grid-2">
           <div class="panel glass">
-            <div class="panel-head"><span class="panel-ico">${icon('payments')}</span><h3>Faturamento x Gastos</h3></div>
-            ${faturamentoTotal || gastoManut || gastoSeguro ? `
-              <div class="chart-pie-card" id="pie-card">
-                ${donutChart(pieSlices)}
-                <div class="chart-total">Total <strong>${fmt.money(pieTotal)}</strong></div>
-                <div class="chart-legend chart-legend-below">
-                  ${pieSlices.map((s, i) => `<button type="button" class="cl-item" data-i="${i}"><span class="cl-dot" style="background:linear-gradient(135deg,${s.c1},${s.c2})"></span><span class="cl-lbl">${s.label}</span><span class="cl-val mono">${fmt.money(s.value)}</span></button>`).join('')}
-                </div>
-              </div>` : emptyBox('Sem dados de faturamento ainda.')}
+            <div class="panel-head"><span class="panel-ico">${icon('payments')}</span><h3>Faturamento x Gastos</h3>${chartSeg('pie')}</div>
+            <div id="pie-card"></div>
           </div>
           <div class="panel glass">
-            <div class="panel-head"><span class="panel-ico">${icon('car')}</span><h3>Trajeto de recebimentos · por ${barras.periodo}</h3></div>
-            ${barras.bars.length ? routeChart(barras.bars) : emptyBox('Sem recebimentos registrados ainda.')}
+            <div class="panel-head"><span class="panel-ico">${icon('car')}</span><h3>Trajeto de recebimentos</h3>${chartSeg('route')}</div>
+            <div id="route-card"></div>
           </div>
         </div>
 
@@ -183,27 +202,43 @@ export async function renderEmpresa(root, user, onLogout) {
     shell.content.querySelector('#ver-pag').onclick = () => go('pagamentos');
     shell.content.querySelectorAll('[data-pay]').forEach((b) => b.onclick = () => receberPagamento(b.dataset.pay, () => go('dashboard')));
 
-    // Donut interativo: hover na fatia (ou na legenda) mostra o valor no centro
-    const pieCard = shell.content.querySelector('#pie-card');
-    if (pieCard) {
-      const svg = pieCard.querySelector('.chart-pie');
-      const clbl = svg.querySelector('.pie-center-lbl');
-      const cval = svg.querySelector('.pie-center-val');
+    // Renderiza a pizza no modo escolhido (mês/ano) + hover interativo
+    const renderPie = (mode) => {
+      const box = shell.content.querySelector('#pie-card');
+      const { slices, total } = pieData(mode);
+      if (total <= 0) { box.innerHTML = startBox(); return; }
+      box.innerHTML = `
+        <div class="chart-pie-card">
+          ${donutChart(slices)}
+          <div class="chart-total">Total <strong>${fmt.money(total)}</strong></div>
+          <div class="chart-legend chart-legend-below">
+            ${slices.map((s, i) => `<button type="button" class="cl-item" data-i="${i}"><span class="cl-dot" style="background:linear-gradient(135deg,${s.c1},${s.c2})"></span><span class="cl-lbl">${s.label}</span><span class="cl-val mono">${fmt.money(s.value)}</span></button>`).join('')}
+          </div>
+        </div>`;
+      const svg = box.querySelector('.chart-pie');
+      const clbl = svg.querySelector('.pie-center-lbl'), cval = svg.querySelector('.pie-center-val');
       const slicesEls = svg.querySelectorAll('.pie-slice');
       const highlight = (i) => {
-        const s = pieSlices[i]; if (!s) return;
+        const s = slices[i]; if (!s) return;
         clbl.textContent = s.label; cval.textContent = fmt.money(s.value);
         slicesEls.forEach((el) => { el.style.opacity = Number(el.dataset.i) === i ? '1' : '0.3'; });
-        pieCard.querySelectorAll('.cl-item').forEach((el) => el.classList.toggle('active', Number(el.dataset.i) === i));
+        box.querySelectorAll('.cl-item').forEach((el) => el.classList.toggle('active', Number(el.dataset.i) === i));
       };
-      const reset = () => {
-        clbl.textContent = ''; cval.textContent = '';
-        slicesEls.forEach((el) => { el.style.opacity = '1'; });
-        pieCard.querySelectorAll('.cl-item').forEach((el) => el.classList.remove('active'));
-      };
+      const reset = () => { clbl.textContent = ''; cval.textContent = ''; slicesEls.forEach((el) => { el.style.opacity = '1'; }); box.querySelectorAll('.cl-item').forEach((el) => el.classList.remove('active')); };
       slicesEls.forEach((el) => { el.addEventListener('mouseenter', () => highlight(Number(el.dataset.i))); el.addEventListener('mouseleave', reset); });
-      pieCard.querySelectorAll('.cl-item').forEach((el) => { el.addEventListener('mouseenter', () => highlight(Number(el.dataset.i))); el.addEventListener('mouseleave', reset); });
-    }
+      box.querySelectorAll('.cl-item').forEach((el) => { el.addEventListener('mouseenter', () => highlight(Number(el.dataset.i))); el.addEventListener('mouseleave', reset); });
+    };
+    const renderRoute = (mode) => {
+      const box = shell.content.querySelector('#route-card');
+      const bars = routeData(mode);
+      box.innerHTML = bars.length ? routeChart(bars) : startBox();
+    };
+    shell.content.querySelectorAll('.chart-seg').forEach((seg) => seg.addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      seg.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x === b));
+      (seg.dataset.chart === 'pie' ? renderPie : renderRoute)(b.dataset.m);
+    }));
+    renderPie('mes'); renderRoute('mes');
   }
 
   /* uma linha da tabela de recebimentos */
