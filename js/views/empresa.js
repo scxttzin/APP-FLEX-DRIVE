@@ -117,7 +117,7 @@ export async function renderEmpresa(root, user, onLogout) {
         { label: 'Manutenção', value: manut, c1: '#FBBF24', c2: '#D97706' },
         { label: 'Seguro', value: seguro, c1: '#A78BFA', c2: '#7C3AED' },
       ];
-      return { slices, total: fatur + manut + seguro };
+      return { slices, total: fatur + manut + seguro, liquido: fatur - manut - seguro };
     };
     const routeData = (mode) => {
       const acc = {};
@@ -205,12 +205,12 @@ export async function renderEmpresa(root, user, onLogout) {
     // Renderiza a pizza no modo escolhido (mês/ano) + hover interativo
     const renderPie = (mode) => {
       const box = shell.content.querySelector('#pie-card');
-      const { slices, total } = pieData(mode);
+      const { slices, total, liquido } = pieData(mode);
       if (total <= 0) { box.innerHTML = startBox(); return; }
       box.innerHTML = `
         <div class="chart-pie-card">
           ${donutChart(slices)}
-          <div class="chart-total">Total <strong>${fmt.money(total)}</strong></div>
+          <div class="chart-total">Total líquido <strong class="${liquido < 0 ? 'neg' : ''}">${fmt.money(liquido)}</strong></div>
           <div class="chart-legend chart-legend-below">
             ${slices.map((s, i) => `<button type="button" class="cl-item" data-i="${i}"><span class="cl-dot" style="background:linear-gradient(135deg,${s.c1},${s.c2})"></span><span class="cl-lbl">${s.label}</span><span class="cl-val mono">${fmt.money(s.value)}</span></button>`).join('')}
           </div>

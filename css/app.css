@@ -429,6 +429,7 @@ table.tbl td.row-actions .btn { flex-shrink: 0; }
 /* total do donut (fora do centro) */
 .chart-total { font-size: 0.82rem; color: var(--gray-3); font-weight: 600; }
 .chart-total strong { color: var(--gray-1); font-weight: 800; }
+.chart-total strong.neg { color: var(--red); }
 /* gráfico de trajeto (estilo Uber) */
 .route-wrap { width: 100%; padding-top: 0.3rem; }
 .route-svg { display: block; width: 100%; height: auto; overflow: visible; }
