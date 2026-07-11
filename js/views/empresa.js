@@ -1564,24 +1564,15 @@ export async function renderEmpresa(root, user, onLogout) {
       <circle cx="13" cy="13" r="13" fill="url(#route-grad)" stroke="#fff" stroke-width="2"/>
       <g transform="translate(3,3.5) scale(0.8)" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M5 13l1.5-4.5A2 2 0 0 1 8.4 7h7.2a2 2 0 0 1 1.9 1.5L19 13M5 13h14v4H5v-4Z"/><circle cx="8" cy="17" r="1.4"/><circle cx="16" cy="17" r="1.4"/></g></g>`;
-    // fundo estilo Google Maps (ruas, quarteirões, parque e água)
+    // fundo estilo Google Maps — minimalista: base clara + poucas ruas sutis
     const mapBg = `
       <g clip-path="url(#route-clip)">
-        <rect x="0" y="0" width="${W}" height="${H}" fill="#EAEEF3"/>
-        <path d="M0 150 Q 42 138 70 162 T 150 190 L 0 190 Z" fill="#C4DCF3"/>
-        <rect x="212" y="16" width="74" height="48" rx="10" fill="#D3E9CB"/>
-        <g fill="#E1E5EC">
-          <rect x="26" y="24" width="30" height="22" rx="4"/><rect x="64" y="26" width="26" height="20" rx="4"/>
-          <rect x="150" y="18" width="34" height="24" rx="4"/><rect x="120" y="120" width="30" height="24" rx="4"/>
-          <rect x="180" y="128" width="34" height="26" rx="4"/><rect x="286" y="96" width="30" height="24" rx="4"/>
-        </g>
-        <g stroke="#D7DCE4" stroke-linecap="round" fill="none">
-          <path d="M-10 58 L 360 42" stroke-width="13"/><path d="M46 -10 L 96 200" stroke-width="11"/>
-          <path d="M-10 152 L 360 118" stroke-width="10"/><path d="M256 -10 L 300 200" stroke-width="9"/>
-        </g>
-        <g stroke="#FFFFFF" stroke-linecap="round" fill="none">
-          <path d="M-10 58 L 360 42" stroke-width="7"/><path d="M46 -10 L 96 200" stroke-width="6"/>
-          <path d="M-10 152 L 360 118" stroke-width="5"/><path d="M256 -10 L 300 200" stroke-width="4"/>
+        <rect x="0" y="0" width="${W}" height="${H}" fill="#F3F5F9"/>
+        <g stroke="#E4E8EF" stroke-linecap="round" fill="none">
+          <path d="M-10 66 L 360 50" stroke-width="6"/>
+          <path d="M60 -10 L 108 200" stroke-width="5"/>
+          <path d="M-10 150 L 360 128" stroke-width="4"/>
+          <path d="M250 -10 L 288 200" stroke-width="4"/>
         </g>
       </g>`;
     return `<div class="route-wrap"><svg viewBox="0 0 ${W} ${H}" class="route-svg">
