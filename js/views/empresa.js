@@ -321,6 +321,9 @@ export async function renderEmpresa(root, user, onLogout) {
       const atrasadosPer = payments.filter((p) => paymentStatus(p) === 'atrasado' && inPer(p.due_date));
       const atrasVal = atrasadosPer.reduce((s, p) => s + Number(p.amount), 0);
       const pendPer = payments.filter((p) => paymentStatus(p) === 'pendente' && inPer(p.due_date)).length;
+      const pagosPer = paidP.filter((p) => inPer(p.paid_date)).length;
+      const manutPer = maints.filter((m) => inPer(m.done_date || m.scheduled_date)).length;
+      const quando = mode === 'ano' ? 'no ano vigente' : 'no mês atual';
       const box = shell.content.querySelector('#pag-kpis'); if (!box) return;
       box.innerHTML = `
         ${kpi('money', 'Faturamento Mensal', fmt.money(fatur), mode === 'ano' ? 'recebido no ano' : 'recebido no mês', 'up')}
@@ -328,7 +331,9 @@ export async function renderEmpresa(root, user, onLogout) {
         ${kpi('wrench', 'Operacional (Gastos)', fmt.money(gastos), 'Manutenções e Seguros', gastos ? 'down' : '')}
         ${kpi('alert', 'Pagamentos atrasados', fmt.money(atrasVal), `${atrasadosPer.length} cobrança(s) a receber`, atrasadosPer.length ? 'down' : '')}
         ${kpi('eye', 'Em análise', `${analise.length}`, 'comprovantes a confirmar')}
-        ${kpi('clock', 'Pendentes', `${pendPer}`, mode === 'ano' ? 'no ano vigente' : 'no mês atual')}`;
+        ${kpi('clock', 'Pendentes', `${pendPer}`, quando)}
+        ${kpi('check', 'Pagos', `${pagosPer}`, quando, 'up')}
+        ${kpi('wrench', 'Número de manutenções', `${manutPer}`, quando)}`;
     };
 
     shell.content.innerHTML = `
