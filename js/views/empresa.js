@@ -1624,7 +1624,7 @@ export async function renderEmpresa(root, user, onLogout) {
         <path d="M5 13l1.5-4.5A2 2 0 0 1 8.4 7h7.2a2 2 0 0 1 1.9 1.5L19 13M5 13h14v4H5v-4Z"/><circle cx="8" cy="17" r="1.4"/><circle cx="16" cy="17" r="1.4"/></g></g>`;
     return `<div class="route-wrap"><svg viewBox="0 0 ${W} ${H}" class="route-svg">
       <defs>
-        <linearGradient id="route-grad" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2563EB"/><stop offset="1" stop-color="#16A34A"/></linearGradient>
+        <linearGradient id="route-grad" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2563EB"/><stop offset="1" stop-color="#0B1220"/></linearGradient>
       </defs>
       <path d="${d}" fill="none" stroke="url(#route-grad)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" class="route-line"/>
       ${dots}${startPin}${car}${vals}${labels}
