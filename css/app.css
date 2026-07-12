@@ -181,6 +181,7 @@ h3 { font-size: 1.1rem; font-weight: 600; letter-spacing: -0.02em; color: var(--
   transition: transform .3s var(--ease-smooth);
 }
 .sidebar-logo { display: flex; align-items: center; gap: 10px; padding: 0 0.6rem 1.4rem; }
+.logo-mark { display: none; width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, #5B9DF9, #1D4ED8); color: #fff; font-weight: 800; font-size: 1.15rem; place-items: center; flex-shrink: 0; box-shadow: 0 6px 16px rgba(37,99,235,0.32); }
 .sidebar-logo img { height: 50px; width: auto; }
 .nav-list { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .nav-section-label { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gray-4); padding: 1rem 0.8rem 0.4rem; }
@@ -694,14 +695,21 @@ button.quick-item { font: inherit; text-align: left; width: 100%; }
   .sidebar { width: 84px; overflow: hidden; padding-left: 0.8rem; padding-right: 0.8rem; transition: width .25s var(--ease-smooth), padding .25s var(--ease-smooth), box-shadow .25s; }
   .sidebar:hover { width: var(--sidebar-w); padding-left: 1rem; padding-right: 1rem; box-shadow: 14px 0 44px rgba(15,23,42,0.12); }
   .main { margin-left: 84px; transition: margin-left .25s var(--ease-smooth); }
-  .sidebar .nav-item > span:not(.nav-ico),
+  /* rótulos das abas: escondem recolhido, aparecem no hover */
+  .sidebar .nav-item > span:not(.nav-ico) { opacity: 0; white-space: nowrap; transition: opacity .12s; }
+  .sidebar:hover .nav-item > span:not(.nav-ico) { opacity: 1; transition: opacity .22s .06s; }
+  /* logo: monograma quando recolhida, wordmark ao expandir (a logo não some) */
+  .sidebar .sidebar-logo { justify-content: center; padding-bottom: 1.4rem; }
+  .sidebar .sidebar-logo img { display: none; }
+  .sidebar .logo-mark { display: grid; }
+  .sidebar:hover .sidebar-logo { justify-content: flex-start; }
+  .sidebar:hover .sidebar-logo img { display: block; }
+  .sidebar:hover .logo-mark { display: none; }
+  /* rodapé do usuário: só o avatar quando recolhida (sem corte) */
+  .sidebar .sidebar-user { justify-content: center; padding: 0.4rem; }
   .sidebar .sidebar-user .meta,
-  .sidebar .sidebar-user .logout-btn,
-  .sidebar .sidebar-logo img { opacity: 0; white-space: nowrap; transition: opacity .12s; }
-  .sidebar:hover .nav-item > span:not(.nav-ico),
-  .sidebar:hover .sidebar-user .meta,
-  .sidebar:hover .sidebar-user .logout-btn,
-  .sidebar:hover .sidebar-logo img { opacity: 1; transition: opacity .22s .06s; }
-  .sidebar .sidebar-user { justify-content: center; }
-  .sidebar:hover .sidebar-user { justify-content: flex-start; }
+  .sidebar .sidebar-user .logout-btn { display: none; }
+  .sidebar:hover .sidebar-user { justify-content: flex-start; padding: 0.7rem; }
+  .sidebar:hover .sidebar-user .meta { display: block; }
+  .sidebar:hover .sidebar-user .logout-btn { display: grid; }
 }

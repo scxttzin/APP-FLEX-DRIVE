@@ -8,7 +8,7 @@ export function buildShell({ root, user, roleLabel, nav, onNav, onLogout }) {
   root.innerHTML = `
     <div class="shell">
       <aside class="sidebar" id="sidebar">
-        <div class="sidebar-logo"><img src="assets/logo.png" alt="Flex Drive"></div>
+        <div class="sidebar-logo"><span class="logo-mark" aria-hidden="true">F</span><img src="assets/logo.png" alt="Flex Drive"></div>
         <nav class="nav-list" id="nav-list">
           ${nav.map((n) => `
             <button class="nav-item" data-key="${n.key}">
