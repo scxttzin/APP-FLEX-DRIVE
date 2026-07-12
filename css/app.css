@@ -184,13 +184,16 @@ h3 { font-size: 1.1rem; font-weight: 600; letter-spacing: -0.02em; color: var(--
 .sidebar-logo img { height: 50px; width: auto; }
 .nav-list { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .nav-section-label { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gray-4); padding: 1rem 0.8rem 0.4rem; }
-.nav-item { display: flex; align-items: center; gap: 12px; padding: 0.72rem 0.85rem; border-radius: var(--radius-sm); cursor: pointer; color: var(--gray-2); font-size: 0.9rem; font-weight: 500; transition: all .18s var(--ease-smooth); border: 1px solid transparent; }
-.nav-item:hover { background: rgba(255,255,255,0.8); color: var(--gray-1); }
-.nav-item.active { background: var(--blue); color: #fff; box-shadow: 0 4px 14px rgba(37,99,235,0.3); }
-.nav-item.active .nav-ico { color: #fff; }
-.nav-ico { width: 20px; height: 20px; flex-shrink: 0; color: var(--gray-3); }
+/* Navegação estilo "app" — cada aba com um chip de ícone; ativo = chip com gradiente + trilho lateral */
+.nav-item { display: flex; align-items: center; gap: 11px; padding: 0.38rem 0.55rem; border-radius: 14px; cursor: pointer; color: var(--gray-2); font-size: 0.9rem; font-weight: 600; transition: all .18s var(--ease-smooth); position: relative; }
+.nav-item:hover { background: rgba(37,99,235,0.06); color: var(--gray-1); }
+.nav-item:hover .nav-ico { background: rgba(37,99,235,0.14); }
+.nav-item.active { background: linear-gradient(90deg, rgba(37,99,235,0.13), rgba(22,163,74,0.05)); color: var(--blue); }
+.nav-item.active::before { content: ''; position: absolute; left: -1rem; top: 9px; bottom: 9px; width: 4px; border-radius: 0 4px 4px 0; background: linear-gradient(180deg, var(--blue), var(--green)); }
+.nav-ico { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; flex-shrink: 0; background: rgba(37,99,235,0.08); color: var(--blue); transition: all .2s var(--ease-smooth); }
+.nav-ico svg { width: 20px; height: 20px; }
+.nav-item.active .nav-ico { background: linear-gradient(135deg, #2563EB, #16A34A); color: #fff; box-shadow: 0 6px 16px rgba(37,99,235,0.32); }
 .nav-item .nav-count { margin-left: auto; font-size: 0.72rem; font-weight: 700; background: var(--blue-pale); color: var(--blue); padding: 0.1rem 0.5rem; border-radius: var(--radius-pill); }
-.nav-item.active .nav-count { background: rgba(255,255,255,0.25); color: #fff; }
 
 .sidebar-user { display: flex; align-items: center; gap: 10px; padding: 0.7rem; border-radius: var(--radius-sm); background: rgba(255,255,255,0.6); margin-top: 0.6rem; }
 .avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--blue); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 0.85rem; flex-shrink: 0; }
@@ -406,6 +409,11 @@ table.tbl td.row-actions .btn { flex-shrink: 0; }
 .rcpt-count { font-size: 0.72rem; font-weight: 700; background: var(--blue-pale); color: var(--blue); padding: 0.1rem 0.55rem; border-radius: var(--radius-pill); flex-shrink: 0; }
 .rcpt-total { font-size: 0.82rem; color: var(--gray-2); flex-shrink: 0; }
 .rcpt-group .table-wrap { padding: 0 1rem 0.8rem; }
+/* barra de resumo do período em "Todos os recebimentos" */
+.rcpt-sumbar { display: flex; flex-wrap: wrap; gap: 0.4rem 1.4rem; align-items: center; padding: 0.4rem 0.1rem 0.85rem; font-size: 0.86rem; color: var(--gray-3); border-bottom: 1px solid var(--gray-6); margin-bottom: 0.5rem; }
+.rcpt-sumbar strong { color: var(--gray-1); font-weight: 800; margin-left: 0.25rem; }
+.rcpt-sumbar strong.ok { color: var(--green); }
+.rcpt-sumbar strong.bad { color: var(--red); }
 
 /* ─── Gráficos do Dashboard (empresa) ─── */
 .chart-pie-card { display: flex; flex-direction: column; align-items: center; gap: 1rem; }

@@ -273,26 +273,25 @@ export async function renderEmpresa(root, user, onLogout) {
       </tr>`;
   }
 
-  /* agrupa os recebimentos por período: mês atual, meses anteriores do ano e anos anteriores */
-  function groupPayments(payments) {
+  /* períodos (para o seletor de "Todos os recebimentos"): mês atual, meses seguintes em ordem,
+     depois os meses passados e por fim os anos anteriores. Escala melhor: mostra 1 período por vez. */
+  function buildPeriods(payments) {
     const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
     const monthName = (y, mo) => cap(new Date(y, mo, 1).toLocaleDateString('pt-BR', { month: 'long' }));
-    const now = new Date(); const curY = now.getFullYear(), curM = now.getMonth();
-    const groups = new Map();
+    const now = new Date(); const curY = now.getFullYear(), curM = now.getMonth(); const curIdx = curY * 12 + curM;
+    const curKey = todayISO().slice(0, 7);
+    const map = new Map();
+    const add = (key, label, rank) => { if (!map.has(key)) map.set(key, { key, label, rank }); };
+    add(curKey, `Mês atual · ${monthName(curY, curM)} de ${curY}`, 0);
     for (const p of payments) {
-      const d = new Date((p.due_date || todayISO()) + 'T00:00:00');
-      const y = d.getFullYear(), mo = d.getMonth();
-      let k, label, weight;
-      if (y === curY && mo === curM) { k = 'cur'; label = `Mês atual · ${monthName(y, mo)} de ${y}`; weight = 1e9; }
-      else if (y === curY) { k = 'm' + mo; label = `${monthName(y, mo)} de ${y}`; weight = 1e6 + mo; }
-      else { k = 'y' + y; label = `${y}`; weight = y; } // anos anteriores agrupam o ano inteiro
-      if (!groups.has(k)) groups.set(k, { label, weight, rows: [], total: 0 });
-      const g = groups.get(k); g.rows.push(p); g.total += Number(p.amount || 0);
+      const ym = String(p.due_date || '').slice(0, 7); if (!ym) continue;
+      const y = +ym.slice(0, 4), mo = +ym.slice(5, 7) - 1;
+      if (y >= curY) { const diff = (y * 12 + mo) - curIdx; add(ym, `${diff === 0 ? 'Mês atual · ' : ''}${monthName(y, mo)} de ${y}`, diff === 0 ? 0 : (diff > 0 ? diff : 100000 - diff)); }
+      else { add('Y' + y, `${y} (ano anterior)`, 200000 + (curY - y)); }
     }
-    const out = [...groups.values()].sort((a, b) => b.weight - a.weight);
-    out.forEach((g) => g.rows.sort((a, b) => (b.due_date || '').localeCompare(a.due_date || '')));
-    return out;
+    return [...map.values()].sort((a, b) => a.rank - b.rank);
   }
+  const periodMatch = (p, key) => key.startsWith('Y') ? String(p.due_date || '').slice(0, 4) === key.slice(1) : String(p.due_date || '').slice(0, 7) === key;
 
   /* ════════════ RECEBIMENTOS ════════════ */
   async function pagePagamentos() {
@@ -367,11 +366,15 @@ export async function renderEmpresa(root, user, onLogout) {
         </div>
         <div class="panel glass">
           <div class="panel-head panel-head-wrap"><span class="panel-ico">${icon('payments')}</span><h3>Todos os recebimentos</h3>
+            <select class="select rcpt-filter" id="rcpt-period">
+              ${buildPeriods(payments).map((pr) => `<option value="${pr.key}" ${pr.key === todayISO().slice(0, 7) ? 'selected' : ''}>${escapeHtml(pr.label)}</option>`).join('')}
+            </select>
             <select class="select rcpt-filter" id="rcpt-filter">
               <option value="">Todos os motoristas</option>
               ${Object.values(clientsMap).sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '')).map((c) => `<option value="${c.id}">${escapeHtml(c.full_name)}</option>`).join('')}
             </select>
             <button class="btn btn-blue btn-sm" id="novo-plano">${icon('calendar')} Gerar Cobrança semanal</button></div>
+          <div id="rcpt-summary"></div>
           <div id="rcpt-groups"></div>
         </div>
       </div>`;
@@ -384,32 +387,38 @@ export async function renderEmpresa(root, user, onLogout) {
     setupCobranca(cfg);
     shell.content.querySelector('#novo-plano').onclick = () => formPlano(() => go('pagamentos'));
 
-    // lista de recebimentos com filtro por motorista (re-renderizável)
+    // Recebimentos: mostra 1 período por vez (escala melhor) + filtro por motorista + resumo
     const groupsBox = shell.content.querySelector('#rcpt-groups');
-    const renderGroups = (clientId) => {
-      const list = clientId ? payments.filter((p) => p.client_id === clientId) : payments;
-      groupsBox.innerHTML = list.length ? groupPayments(list).map((g, gi) => `
-        <details class="rcpt-group" ${gi === 0 ? 'open' : ''}>
-          <summary class="rcpt-sum">
-            <span class="rcpt-chev">${icon('chevR')}</span>
-            <span class="rcpt-sum-label">${escapeHtml(g.label)}</span>
-            <span class="rcpt-count">${g.rows.length}</span>
-            <span class="rcpt-total mono">${fmt.money(g.total)}</span>
-          </summary>
-          <div class="table-wrap"><table class="tbl">
-            <thead><tr><th>Motorista</th><th>Vencimento</th><th>Pago em</th><th>Forma</th><th>Valor</th><th>Status</th><th></th></tr></thead>
-            <tbody>${g.rows.map(paymentRow).join('')}</tbody>
-          </table></div>
-        </details>`).join('') : emptyBox(clientId ? 'Este motorista não tem recebimentos lançados.' : 'Nenhum pagamento lançado.');
-      // (re)liga as ações das linhas
+    const summaryBox = shell.content.querySelector('#rcpt-summary');
+    const periodSel = shell.content.querySelector('#rcpt-period');
+    const filterSel = shell.content.querySelector('#rcpt-filter');
+    const renderGroups = () => {
+      const clientId = filterSel.value, periodKey = periodSel.value;
+      let list = payments.filter((p) => periodMatch(p, periodKey));
+      if (clientId) list = list.filter((p) => p.client_id === clientId);
+      list.sort((a, b) => (a.due_date || '').localeCompare(b.due_date || '') || clientName(a.client_id).localeCompare(clientName(b.client_id)));
+      const esperado = list.reduce((s, p) => s + Number(p.amount), 0);
+      const recebido = list.filter((p) => paymentStatus(p) === 'pago').reduce((s, p) => s + Number(p.amount), 0);
+      const atrasado = list.filter((p) => paymentStatus(p) === 'atrasado').reduce((s, p) => s + Number(p.amount), 0);
+      summaryBox.innerHTML = list.length ? `<div class="rcpt-sumbar">
+        <span>Esperado <strong>${fmt.money(esperado)}</strong></span>
+        <span>Recebido <strong class="ok">${fmt.money(recebido)}</strong></span>
+        <span>A receber <strong>${fmt.money(esperado - recebido)}</strong></span>
+        ${atrasado ? `<span>Atrasado <strong class="bad">${fmt.money(atrasado)}</strong></span>` : ''}
+        <span class="rcpt-count" style="margin-left:auto">${list.length} cobrança(s)</span>
+      </div>` : '';
+      groupsBox.innerHTML = list.length ? `<div class="table-wrap"><table class="tbl">
+        <thead><tr><th>Motorista</th><th>Vencimento</th><th>Pago em</th><th>Forma</th><th>Valor</th><th>Status</th><th></th></tr></thead>
+        <tbody>${list.map(paymentRow).join('')}</tbody>
+      </table></div>` : emptyBox(clientId ? 'Este motorista não tem cobranças neste período.' : 'Nenhuma cobrança neste período.');
       groupsBox.querySelectorAll('[data-pay]').forEach((b) => b.onclick = () => receberPagamento(b.dataset.pay, () => go('pagamentos')));
       groupsBox.querySelectorAll('[data-receipt]').forEach((b) => b.onclick = async () => { const p = payments.find((x) => x.id === b.dataset.receipt); const url = await api.receiptUrl(p); if (url) openFile(url, p.receipt_name || 'comprovante'); else toast('Este pagamento não tem comprovante anexado pelo motorista.', 'info'); });
       groupsBox.querySelectorAll('[data-edit]').forEach((b) => b.onclick = () => formPagamento(payments.find((p) => p.id === b.dataset.edit), () => go('pagamentos')));
       groupsBox.querySelectorAll('[data-del]').forEach((b) => b.onclick = () => confirmDialog('Excluir este pagamento?', async () => { await api.deletePayment(b.dataset.del); toast('Pagamento excluído', 'ok'); go('pagamentos'); }));
     };
-    const filterSel = shell.content.querySelector('#rcpt-filter');
-    filterSel.onchange = () => renderGroups(filterSel.value);
-    renderGroups('');
+    periodSel.onchange = renderGroups;
+    filterSel.onchange = renderGroups;
+    renderGroups();
   }
 
   /* editor dinâmico de métodos de cobrança + juros por marca */
