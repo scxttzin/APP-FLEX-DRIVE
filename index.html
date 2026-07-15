@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#2563EB">
+  <!-- Segurança: restringe de onde scripts/estilos/conexões/imagens podem vir -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://esm.sh https://*.supabase.co wss://*.supabase.co; media-src 'self' blob:; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>Flex Drive — App</title>
   <meta name="description" content="Aplicativo Flex Drive — painel da empresa e área do cliente.">
   <link rel="icon" href="assets/logo.png">
