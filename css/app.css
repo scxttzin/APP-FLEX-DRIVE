@@ -411,7 +411,7 @@ table.tbl td.row-actions .btn { flex-shrink: 0; }
 .rcpt-count { font-size: 0.72rem; font-weight: 700; background: var(--blue-pale); color: var(--blue); padding: 0.1rem 0.55rem; border-radius: var(--radius-pill); flex-shrink: 0; }
 .rcpt-total { font-size: 0.82rem; color: var(--gray-2); flex-shrink: 0; }
 .rcpt-group .table-wrap { padding: 0 1rem 0.8rem; }
-/* barra de resumo do período em "Todos os recebimentos" */
+/* barra de resumo do período em "Todos os Semanais" */
 .rcpt-sumbar { display: flex; flex-wrap: wrap; gap: 0.4rem 1.4rem; align-items: center; padding: 0.4rem 0.1rem 0.85rem; font-size: 0.86rem; color: var(--gray-3); border-bottom: 1px solid var(--gray-6); margin-bottom: 0.5rem; }
 .rcpt-sumbar strong { color: var(--gray-1); font-weight: 800; margin-left: 0.25rem; }
 .rcpt-sumbar strong.ok { color: var(--green); }

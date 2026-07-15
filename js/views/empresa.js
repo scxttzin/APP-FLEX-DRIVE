@@ -283,7 +283,7 @@ export async function renderEmpresa(root, user, onLogout) {
       </tr>`;
   }
 
-  /* períodos (para o seletor de "Todos os recebimentos"): mês atual, meses seguintes em ordem,
+  /* períodos (para o seletor de "Todos os Semanais"): mês atual, meses seguintes em ordem,
      depois os meses passados e por fim os anos anteriores. Escala melhor: mostra 1 período por vez. */
   function buildPeriods(payments) {
     const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -375,7 +375,7 @@ export async function renderEmpresa(root, user, onLogout) {
           <div style="margin-top:1rem"><button class="btn btn-blue" id="save-cobr">${icon('check')} Salvar</button></div>
         </div>
         <div class="panel glass">
-          <div class="panel-head panel-head-wrap"><span class="panel-ico">${icon('payments')}</span><h3>Todos os recebimentos</h3>
+          <div class="panel-head panel-head-wrap"><span class="panel-ico">${icon('payments')}</span><h3>Todos os Semanais</h3>
             <select class="select rcpt-filter" id="rcpt-period">
               ${buildPeriods(payments).map((pr) => `<option value="${pr.key}" ${pr.key === todayISO().slice(0, 7) ? 'selected' : ''}>${escapeHtml(pr.label)}</option>`).join('')}
             </select>
