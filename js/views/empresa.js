@@ -74,6 +74,7 @@ export async function renderEmpresa(root, user, onLogout) {
     shell.setActive(key);
     refreshNotifications();
     document.body.classList.toggle('dash-active', key === 'dashboard');
+    document.body.classList.toggle('emp-dash', key === 'dashboard');   // no desktop, tira o sino do topo (vira card na dashboard)
     shell.content.innerHTML = loading();
     try {
       if (key === 'dashboard') await pageDashboard();
@@ -103,6 +104,9 @@ export async function renderEmpresa(root, user, onLogout) {
     const locados = vehicles.filter((v) => vstatus(v) === 'locado').length;
     const disponiveis = vehicles.filter((v) => vstatus(v) === 'disponivel').length;
     const manutAbertas = maints.filter((m) => m.status !== 'concluida');
+    // manutenções do mês atual: realizadas (concluídas) e agendadas
+    const feitasMes = maints.filter((m) => m.status === 'concluida' && String(m.done_date || '').slice(0, 7) === month).length;
+    const agendadasMes = maints.filter((m) => m.status === 'agendada' && String(m.scheduled_date || '').slice(0, 7) === month).length;
     const taxaOcupacao = vehicles.length ? Math.round((locados / vehicles.length) * 100) : 0;
 
     // Gráficos (seletor Mês/Ano). Seguro = soma do valor registrado em cada carro (gasto fixo mensal).
@@ -154,7 +158,13 @@ export async function renderEmpresa(root, user, onLogout) {
           ${kpi('money', 'Faturamento Mensal', fmt.money(recebidoMes), `${payments.filter((p) => paymentStatus(p) === 'pago' && (p.paid_date || '').slice(0, 7) === month).length} pagamentos`, 'up')}
           ${kpi('clock', 'Pagamentos a receber', fmt.money(aReceber), `${atrasados.length} em atraso`, atrasados.length ? 'down' : '')}
           ${kpi('users', 'Motoristas Cadastrados', `${Object.keys(clientsMap).length}`, 'no total')}
-          ${kpi('wrench', 'Manutenções abertas', `${manutAbertas.length}`, `${new Set(manutAbertas.map((m) => m.vehicle_id)).size} veículo(s)`)}
+          ${kpi('wrench', 'Manutenções feitas', `${feitasMes}`, `${agendadasMes} agendada(s) no mês`)}
+        </div>
+
+        <div class="panel glass notif-card-wrap">
+          <div class="panel-head"><span class="panel-ico">${icon('bell')}</span><h3>Notificações do mês</h3>
+            <span class="badge badge-blue" id="notif-card-count"></span></div>
+          <div class="notif-card-list" id="notif-card-list">${loading()}</div>
         </div>
 
         <div class="grid-cols grid-2">
@@ -252,6 +262,7 @@ export async function renderEmpresa(root, user, onLogout) {
       (seg.dataset.chart === 'pie' ? renderPie : renderRoute)(b.dataset.m);
     }));
     renderPie('mes'); renderRoute('mes');
+    renderNotifCard();
   }
 
   /* uma linha da tabela de recebimentos */
@@ -352,7 +363,7 @@ export async function renderEmpresa(root, user, onLogout) {
 
           <div class="cobr-split">
             <div>
-              <div class="eyebrow" style="margin:0 0 .4rem">Juros por dia de atraso</div>
+              <div class="eyebrow" style="margin:0 0 .4rem">Multa por dia de atraso</div>
               <div class="field" style="margin:0"><label>Padrão — outras marcas (R$/dia)</label><input class="input" type="number" step="0.01" min="0" id="late-default" value="${cfg.late_fee_per_day}" placeholder="25,00"></div>
               <div class="body-sm" style="margin-top:.4rem">O valor informado será acrescentado automaticamente em cada cobrança pix, por cada dia de atraso no pagamento do motorista.</div>
             </div>
@@ -1616,7 +1627,7 @@ export async function renderEmpresa(root, user, onLogout) {
     const vals = bars.map((b, i) => `<text x="${xs[i]}" y="${ys[i] - 13}" text-anchor="middle" class="route-val">${money(b.value)}</text>`).join('');
     const labels = bars.map((b, i) => `<text x="${xs[i]}" y="${H - 10}" text-anchor="middle" class="route-lbl">${escapeHtml(b.label)}</text>`).join('');
     // partida (pino verde) e chegada (carrinho azul)
-    const startPin = `<circle cx="${xs[0]}" cy="${ys[0]}" r="6" fill="var(--green)" stroke="#fff" stroke-width="2.5"/>`;
+    const startPin = `<circle cx="${xs[0]}" cy="${ys[0]}" r="6" fill="var(--blue)" stroke="#fff" stroke-width="2.5"/>`;
     const cx = xs[n - 1], cy = ys[n - 1];
     const car = `<g transform="translate(${cx - 13},${cy - 13})">
       <circle cx="13" cy="13" r="13" fill="url(#route-grad)" stroke="#fff" stroke-width="2"/>
@@ -1658,24 +1669,47 @@ export async function renderEmpresa(root, user, onLogout) {
   }
 
   /* ── Sino de notificações (topo) ── */
+  /* monta a lista de notificações, cada uma com a data de referência */
+  async function buildNotifItems() {
+    const [payments, maints, contracts] = await Promise.all([api.listPayments(), api.listMaintenances(), api.listContracts()]);
+    if (!Object.keys(clientsMap).length || !Object.keys(vehiclesMap).length) await refreshMaps();
+    const analise = payments.filter((p) => paymentStatus(p) === 'em_analise');
+    const atras = payments.filter((p) => paymentStatus(p) === 'atrasado');
+    const hoje = payments.filter((p) => paymentStatus(p) === 'pendente' && daysFromToday(p.due_date) === 0);
+    const semana = payments.filter((p) => paymentStatus(p) === 'pendente' && daysFromToday(p.due_date) > 0 && daysFromToday(p.due_date) <= 7);
+    const manutReq = maints.filter((m) => m.status === 'solicitada');
+    const renovReq = contracts.filter((c) => c.status === 'renovacao_solicitada');
+    return [
+      ...analise.map((p) => ({ id: `analise:${p.id}`, date: p.due_date, cls: 'pay', ico: 'check', title: `${clientName(p.client_id)} enviou comprovante`, sub: `${fmt.money(p.amount)} · confirme o recebimento`, goto: 'pagamentos' })),
+      ...manutReq.map((m) => ({ id: `manut:${m.id}`, date: m.scheduled_date, cls: 'due', ico: 'wrench', title: `Manutenção solicitada — ${clientName(m.requested_by)}`, sub: `${m.type || ''} · ${vehiclesMap[m.vehicle_id]?.plate || ''}`, goto: 'manutencoes' })),
+      ...renovReq.map((c) => ({ id: `renov:${c.id}`, date: c.end_date, cls: 'due', ico: 'renew', title: `Renovação de contrato — ${clientName(c.client_id)}`, sub: `${vehiclesMap[c.vehicle_id]?.plate || ''} · enviar novo documento`, goto: 'documentos' })),
+      ...atras.map((p) => ({ id: `late:${p.id}`, date: p.due_date, cls: 'late', ico: 'alert', title: `Atrasado — ${clientName(p.client_id)}`, sub: `${fmt.money(p.amount)} · venceu ${fmt.date(p.due_date)}`, goto: 'pagamentos' })),
+      ...hoje.map((p) => ({ id: `hoje:${p.id}`, date: p.due_date, cls: 'due', ico: 'clock', title: `Vence hoje — ${clientName(p.client_id)}`, sub: `${fmt.money(p.amount)}`, goto: 'pagamentos' })),
+      ...semana.map((p) => ({ id: `semana:${p.id}`, date: p.due_date, cls: 'due', ico: 'calendar', title: `Vence em ${daysFromToday(p.due_date)} dia(s) — ${clientName(p.client_id)}`, sub: `${fmt.money(p.amount)} · ${fmt.date(p.due_date)}`, goto: 'pagamentos' })),
+    ];
+  }
+
+  /* Card de notificações do mês (Dashboard, só desktop). Ao clicar, fica cinza (vista).
+     Vira o mês → as do mês anterior somem e entram as novas. */
+  async function renderNotifCard() {
+    const box = shell.content.querySelector('#notif-card-list');
+    if (!box) return;
+    const mes = todayISO().slice(0, 7);
+    const doMes = (await buildNotifItems()).filter((n) => String(n.date || '').slice(0, 7) === mes);
+    const { visible: items, unreadCount } = applyReadState(user.id, doMes);
+    const cnt = shell.content.querySelector('#notif-card-count');
+    if (cnt) cnt.textContent = unreadCount ? `${unreadCount} nova(s)` : 'tudo visto';
+    box.innerHTML = items.length ? items.map((n) => `
+      <button type="button" class="notif-item ${n.read ? 'read' : ''}" data-id="${n.id}">
+        <div class="notif-ico ${n.cls}">${icon(n.ico)}</div>
+        <div style="min-width:0"><div class="n-title">${escapeHtml(n.title)}</div><div class="n-sub">${escapeHtml(n.sub)}</div></div>
+      </button>`).join('') : `<div class="empty" style="padding:1.4rem">${icon('check', 'empty-ico')}<p>Nenhuma notificação neste mês. 🎉</p></div>`;
+    box.querySelectorAll('[data-id]').forEach((el) => el.onclick = () => { markNotifRead(user.id, el.dataset.id); renderNotifCard(); });
+  }
+
   async function refreshNotifications() {
     try {
-      const [payments, maints, contracts] = await Promise.all([api.listPayments(), api.listMaintenances(), api.listContracts()]);
-      if (!Object.keys(clientsMap).length || !Object.keys(vehiclesMap).length) await refreshMaps();
-      const analise = payments.filter((p) => paymentStatus(p) === 'em_analise');
-      const atras = payments.filter((p) => paymentStatus(p) === 'atrasado');
-      const hoje = payments.filter((p) => paymentStatus(p) === 'pendente' && daysFromToday(p.due_date) === 0);
-      const semana = payments.filter((p) => paymentStatus(p) === 'pendente' && daysFromToday(p.due_date) > 0 && daysFromToday(p.due_date) <= 7);
-      const manutReq = maints.filter((m) => m.status === 'solicitada');
-      const renovReq = contracts.filter((c) => c.status === 'renovacao_solicitada');
-      const allItems = [
-        ...analise.map((p) => ({ id: `analise:${p.id}`, cls: 'pay', ico: 'check', title: `${clientName(p.client_id)} enviou comprovante`, sub: `${fmt.money(p.amount)} · confirme o recebimento`, goto: 'pagamentos' })),
-        ...manutReq.map((m) => ({ id: `manut:${m.id}`, cls: 'due', ico: 'wrench', title: `Manutenção solicitada — ${clientName(m.requested_by)}`, sub: `${escapeHtml(m.type || '')} · ${vehiclesMap[m.vehicle_id]?.plate || ''}`, goto: 'manutencoes' })),
-        ...renovReq.map((c) => ({ id: `renov:${c.id}`, cls: 'due', ico: 'renew', title: `Renovação de contrato — ${clientName(c.client_id)}`, sub: `${vehiclesMap[c.vehicle_id]?.plate || ''} · enviar novo documento`, goto: 'documentos' })),
-        ...atras.map((p) => ({ id: `late:${p.id}`, cls: 'late', ico: 'alert', title: `Atrasado — ${clientName(p.client_id)}`, sub: `${fmt.money(p.amount)} · venceu ${fmt.date(p.due_date)}`, goto: 'pagamentos' })),
-        ...hoje.map((p) => ({ id: `hoje:${p.id}`, cls: 'due', ico: 'clock', title: `Vence hoje — ${clientName(p.client_id)}`, sub: `${fmt.money(p.amount)}`, goto: 'pagamentos' })),
-        ...semana.map((p) => ({ id: `semana:${p.id}`, cls: 'due', ico: 'calendar', title: `Vence em ${daysFromToday(p.due_date)} dia(s) — ${clientName(p.client_id)}`, sub: `${fmt.money(p.amount)} · ${fmt.date(p.due_date)}`, goto: 'pagamentos' })),
-      ];
+      const allItems = await buildNotifItems();
       const { visible: items, unreadCount } = applyReadState(user.id, allItems);
       // chip do dashboard: mostra sempre a 1ª notificação AINDA NÃO vista
       const latest = (currentKey === 'dashboard') ? items.find((i) => !i.read) : null;

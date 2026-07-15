@@ -33,6 +33,7 @@ export async function renderCliente(root, user, onLogout) {
     shell.setActive(key);
     refreshNotifications();
     document.body.classList.toggle('dash-active', key === 'inicio');  // fundo azul só na aba Início (mesmo estilo do painel)
+    document.body.classList.remove('emp-dash');                       // o card de notificações é só da empresa
     shell.content.innerHTML = loading();
     try {
       if (key === 'inicio') await pageInicio();
