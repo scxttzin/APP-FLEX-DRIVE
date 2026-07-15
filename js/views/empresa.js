@@ -178,7 +178,7 @@ export async function renderEmpresa(root, user, onLogout) {
         </div>
 
         <div class="panel glass">
-          <div class="panel-head"><span class="panel-ico">${icon('payments')}</span><h3>Próximos recebimentos</h3>
+          <div class="panel-head"><span class="panel-ico">${icon('payments')}</span><h3>Próximos Semanais</h3>
             <button class="btn btn-ghost btn-sm" id="ver-pag">Ver todos</button></div>
           ${proximos.length ? `
             <div class="table-wrap"><table class="tbl">
