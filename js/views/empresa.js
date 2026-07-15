@@ -161,13 +161,7 @@ export async function renderEmpresa(root, user, onLogout) {
           ${kpi('wrench', 'Manutenções feitas', `${feitasMes}`, `${agendadasMes} agendada(s) no mês`)}
         </div>
 
-        <div class="panel glass notif-card-wrap">
-          <div class="panel-head"><span class="panel-ico">${icon('bell')}</span><h3>Notificações do mês</h3>
-            <span class="badge badge-blue" id="notif-card-count"></span></div>
-          <div class="notif-card-list" id="notif-card-list">${loading()}</div>
-        </div>
-
-        <div class="grid-cols grid-2">
+        <div class="grid-cols grid-dash">
           <div class="panel glass">
             <div class="panel-head"><span class="panel-ico">${icon('payments')}</span><h3>Faturamento x Gastos</h3>${chartSeg('pie')}</div>
             <div id="pie-card"></div>
@@ -175,6 +169,11 @@ export async function renderEmpresa(root, user, onLogout) {
           <div class="panel glass">
             <div class="panel-head"><span class="panel-ico">${icon('car')}</span><h3>Trajeto de recebimentos</h3>${chartSeg('route')}</div>
             <div id="route-card"></div>
+          </div>
+          <div class="panel glass notif-card-wrap">
+            <div class="panel-head"><span class="panel-ico">${icon('bell')}</span><h3>Notificações</h3>
+              <span class="badge badge-blue" id="notif-card-count"></span></div>
+            <div class="notif-card-list" id="notif-card-list">${loading()}</div>
           </div>
         </div>
 

@@ -718,11 +718,14 @@ button.quick-item { font: inherit; text-align: left; width: 100%; }
 
 /* Card de notificações do mês — só no desktop, só na Dashboard.
    Nesse contexto o sino sai do topo e o painel assume o lugar dele. */
-.notif-card-wrap { padding-left: 0; padding-right: 0; }
+.notif-card-wrap { padding-left: 0; padding-right: 0; display: flex; flex-direction: column; }
 .notif-card-wrap .panel-head { padding-left: 1.1rem; padding-right: 1.1rem; }
-.notif-card-list { max-height: 340px; overflow-y: auto; }
+.notif-card-list { flex: 1; min-height: 0; max-height: 360px; overflow-y: auto; }
 button.notif-item { width: 100%; font: inherit; color: inherit; text-align: left; background: none; border: none;
   border-bottom: 1px solid rgba(229,231,235,0.6); }
 button.notif-item:last-child { border-bottom: none; }
 @media (max-width: 900px) { .notif-card-wrap { display: none; } }
 @media (min-width: 901px) { body.emp-dash .topbar-actions { display: none; } }
+/* dashboard: gráficos + trilha de notificações ao lado (nunca por cima) */
+@media (min-width: 1100px) { .grid-dash { grid-template-columns: minmax(0,1fr) minmax(0,1fr) 300px; } }
+@media (min-width: 901px) and (max-width: 1099px) { .grid-dash { grid-template-columns: minmax(0,1fr) minmax(0,1fr); } }
