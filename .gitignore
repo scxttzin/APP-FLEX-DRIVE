@@ -1,8 +1,12 @@
 # Preview local / config da IDE
 .claude/
 
-# Dependências (não usadas — app é estático)
+# Dependências (só do build opcional de ofuscação)
 node_modules/
+package-lock.json
+
+# Saída do build opcional (gerada no CI)
+dist/
 
 # Sistema
 .DS_Store

@@ -1,0 +1,14 @@
+{
+  "name": "flex-drive-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Build opcional: empacota e ofusca o app para publicar (dificulta a leitura/cópia do código).",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.23.0",
+    "javascript-obfuscator": "^4.1.0"
+  }
+}
